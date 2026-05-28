@@ -44,8 +44,16 @@ class ShortsBlockerService : AccessibilityService() {
             if (packageName.isNotEmpty()) {
                 val isTargetApp = packageName.contains("youtube") || packageName.contains("instagram")
                 val isOurApp = packageName == this.packageName
-                if (!isTargetApp && !isOurApp) {
-                    removeFrictionOverlay()
+                val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
+                val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
+
+                if (!isTargetApp && !isOurApp && !isSystemApp && !isKeyboard) {
+                    if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                        removeFrictionOverlay()
+                    }
+                    return
+                } else if (isSystemApp || isKeyboard) {
+                    // Ignore system UI and keyboard events, they happen while overlay is active
                     return
                 }
             }
@@ -179,7 +187,13 @@ class ShortsBlockerService : AccessibilityService() {
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
                 PixelFormat.TRANSLUCENT
             )
-            layoutParams.dimAmount = 0.85f
+            layoutParams.dimAmount = 0.65f
+
+            // Add Apple-style native blur support on Android 12 (API 31) and above
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                layoutParams.blurBehindRadius = 60
+            }
 
             try {
                 val inflater = LayoutInflater.from(this)

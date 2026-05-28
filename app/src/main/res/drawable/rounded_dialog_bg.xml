@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#1A237E" />
-    <corners android:radius="24dp" />
+    <!-- Premium dark frosted glassmorphic background -->
+    <solid android:color="#D6181921" />
+    <corners android:radius="28dp" />
+    <!-- Fine glowing border representing glass edge reflection -->
+    <stroke
+        android:width="1.5dp"
+        android:color="#45FFFFFF" />
 </shape>
