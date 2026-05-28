@@ -2,6 +2,7 @@ package com.example
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Handler
@@ -35,86 +36,124 @@ class ShortsBlockerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        val packageName = event.packageName?.toString() ?: ""
-        if (!packageName.contains("youtube") && !packageName.contains("instagram")) {
-            return
-        }
+        try {
+            val packageName = event.packageName?.toString() ?: ""
 
-        // If user recently entered the correct password, do not show lock overlay during cooldown period
-        val currentTime = System.currentTimeMillis()
-        if (currentTime < lastUnlockTime + UNLOCK_COOLDOWN_MS) {
-            return
-        }
-
-        val eventType = event.eventType
-        // Trigger on any scroll, content change, or window state change to guarantee it fires
-        if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
-            eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-            eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            
-            var isAddictiveMedia = false
-
-            // Check event source node if available
-            val eventSource = event.source
-            if (eventSource != null) {
-                isAddictiveMedia = checkNodeForShortsOrReels(eventSource)
-                eventSource.recycle()
-            }
-
-            // Fallback: check whole visible active window layout hierarchy if the event source did not match
-            if (!isAddictiveMedia) {
-                val rootNode = rootInActiveWindow
-                if (rootNode != null) {
-                    isAddictiveMedia = checkNodeForShortsOrReels(rootNode)
-                    rootNode.recycle()
+            // Critical safety feature: If the event is from another app/launcher (not YouTube, not Instagram, and not our app),
+            // we must immediately and automatically dismiss the blocking overlay to prevent trapping the user!
+            if (packageName.isNotEmpty()) {
+                val isTargetApp = packageName.contains("youtube") || packageName.contains("instagram")
+                val isOurApp = packageName == this.packageName
+                if (!isTargetApp && !isOurApp) {
+                    removeFrictionOverlay()
+                    return
                 }
             }
 
-            if (isAddictiveMedia) {
-                showFrictionOverlay()
+            // Only run blocking checks when on YouTube or Instagram
+            val isTargetApp = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram"))
+            if (!isTargetApp) {
+                return
             }
+
+            // If user recently entered the correct password, do not show lock overlay during cooldown period
+            val currentTime = System.currentTimeMillis()
+            if (currentTime < lastUnlockTime + UNLOCK_COOLDOWN_MS) {
+                return
+            }
+
+            val eventType = event.eventType
+            // Trigger on any scroll, content change, or window state change to guarantee it fires
+            if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
+                eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                
+                var isAddictiveMedia = false
+
+                // Check event source node if available
+                val eventSource = event.source
+                if (eventSource != null) {
+                    isAddictiveMedia = checkNodeForShortsOrReels(eventSource)
+                    try {
+                        eventSource.recycle()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                // Fallback: check whole visible active window layout hierarchy if the event source did not match
+                if (!isAddictiveMedia) {
+                    val rootNode = rootInActiveWindow
+                    if (rootNode != null) {
+                        isAddictiveMedia = checkNodeForShortsOrReels(rootNode)
+                        try {
+                            rootNode.recycle()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+
+                if (isAddictiveMedia) {
+                    showFrictionOverlay()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
 
-        val viewId = node.viewIdResourceName ?: ""
+        try {
+            val viewId = node.viewIdResourceName ?: ""
 
-        // Filter YouTube Shorts player elements precisely (prevent normal feed/search scrolls from being blocked)
-        if (viewId.contains("com.google.android.youtube:id/shorts_player") ||
-            viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
-            viewId.contains("com.google.android.youtube:id/reel_recycler") ||
-            viewId.contains("com.google.android.youtube:id/reel_container") ||
-            viewId.contains("com.google.android.youtube:id/shorts_container") ||
-            viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
-            viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
-            viewId.contains("com.google.android.youtube:id/panel_container")) {
-            return true
-        }
+            // Filter YouTube Shorts player elements precisely (prevent normal feed/search scrolls from being blocked)
+            if (viewId.contains("com.google.android.youtube:id/shorts_player") ||
+                viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
+                viewId.contains("com.google.android.youtube:id/reel_recycler") ||
+                viewId.contains("com.google.android.youtube:id/reel_container") ||
+                viewId.contains("com.google.android.youtube:id/shorts_container") ||
+                viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
+                viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
+                viewId.contains("com.google.android.youtube:id/panel_container")) {
+                return true
+            }
 
-        // Filter Instagram Reels elements precisely
-        if (viewId.contains("com.instagram.android:id/clips_video_container") ||
-            viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
-            viewId.contains("com.instagram.android:id/clips_viewer_container") ||
-            viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
-            viewId.contains("com.instagram.android:id/clips_post_container") ||
-            viewId.contains("com.instagram.android:id/clips_layout") ||
-            viewId.contains("com.instagram.android:id/reels_clip_container")) {
-            return true
-        }
+            // Filter Instagram Reels elements precisely
+            if (viewId.contains("com.instagram.android:id/clips_video_container") ||
+                viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
+                viewId.contains("com.instagram.android:id/clips_viewer_container") ||
+                viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
+                viewId.contains("com.instagram.android:id/clips_post_container") ||
+                viewId.contains("com.instagram.android:id/clips_layout") ||
+                viewId.contains("com.instagram.android:id/reels_clip_container")) {
+                return true
+            }
 
-        // Traverse hierarchy
-        val childCount = node.childCount
-        for (i in 0 until childCount) {
-            val child = node.getChild(i)
-            if (child != null) {
-                val found = checkNodeForShortsOrReels(child)
-                child.recycle()
-                if (found) {
-                    return true
+            // Traverse hierarchy safely
+            val childCount = node.childCount
+            for (i in 0 until childCount) {
+                val child = try {
+                    node.getChild(i)
+                } catch (e: Exception) {
+                    null
+                }
+                if (child != null) {
+                    val found = checkNodeForShortsOrReels(child)
+                    try {
+                        child.recycle()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    if (found) {
+                        return true
+                    }
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return false
     }
@@ -148,6 +187,7 @@ class ShortsBlockerService : AccessibilityService() {
 
                 val passwordInput = overlayView?.findViewById<EditText>(R.id.password_input)
                 val unlockButton = overlayView?.findViewById<Button>(R.id.unlock_button)
+                val exitButton = overlayView?.findViewById<Button>(R.id.exit_button)
 
                 unlockButton?.setOnClickListener {
                     val correctPassword = try {
@@ -163,6 +203,19 @@ class ShortsBlockerService : AccessibilityService() {
                         removeFrictionOverlay()
                     } else {
                         passwordInput?.error = "Incorrect Password"
+                    }
+                }
+
+                exitButton?.setOnClickListener {
+                    removeFrictionOverlay()
+                    try {
+                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(homeIntent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
 
