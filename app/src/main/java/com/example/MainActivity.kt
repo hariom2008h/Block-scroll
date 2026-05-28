@@ -3,6 +3,7 @@ package com.example
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.content.Context
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -25,8 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -52,19 +51,8 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     
-    val masterKey = remember {
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-    }
     val sharedPrefs = remember {
-        EncryptedSharedPreferences.create(
-            context,
-            "shorts_blocker_prefs",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
 
     var password by remember { 
@@ -221,7 +209,8 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                         text = "1. नीचे दिए बटन पर क्लिक करके 'App Settings' खोलें।\n" +
                                "2. 'Autostart' (ऑटोस्टार्ट) को चालू (ON) करें।\n" +
                                "3. 'Battery Saver' में जाकर 'No Restrictions' सेलेक्ट करें ताकि ऐप कभी भी बंद न हो।\n" +
-                               "4. अब 'Accessibility service' को दोबारा बंद करके चालू (Restart) करें।",
+                               "4. 'Other Permissions' (अन्य अनुमतियां) में जाएँ और 'Display pop-up windows while running in the background' (बैकग्राउंड में पॉप-अप विंडो प्रदर्शित करें) को Allow / Always Allow करें (इसके बिना लॉक स्क्रीन नहीं दिखेगी और Not Working नजर आएगा)।\n" +
+                               "5. अब 'Accessibility service' को दोबारा बंद करके चालू (Restart) करें।",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp)
@@ -236,7 +225,8 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                         text = "1. Click the button below to open 'App Settings'.\n" +
                                "2. Turn ON the 'Autostart' toggle option.\n" +
                                "3. Set 'Battery Saver' to 'No Restrictions' (stops the system from deep sleeping the app).\n" +
-                               "4. Now, turn Off and turn On the 'Accessibility' service again to activate.",
+                               "4. Go to 'Other permissions' and set 'Display pop-up windows while running in the background' to 'Always allow' / 'Accept' (mandatory for the blocker overlay to work!).\n" +
+                               "5. Now, turn Off and turn On the 'Accessibility' service again to activate.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp)
@@ -253,7 +243,36 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Open App Settings / ऐप सेटिंग्स खोलें", color = MaterialTheme.colorScheme.onError)
+                        Text("1. Open App Settings / ऐप सेटिंग्स खोलें", color = MaterialTheme.colorScheme.onError)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    FilledTonalButton(
+                        onClick = {
+                            try {
+                                val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                                    setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                                    putExtra("extra_pkgname", context.packageName)
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                try {
+                                    val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                                        putExtra("extra_pkgname", context.packageName)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e2: Exception) {
+                                    Toast.makeText(context, "Could not open directly. Go to App settings -> Other permissions manually.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("2. Open Other Permissions / अन्य अनुमतियां", color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             }

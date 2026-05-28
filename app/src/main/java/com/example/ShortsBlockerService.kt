@@ -14,8 +14,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 
 class ShortsBlockerService : AccessibilityService() {
 
@@ -31,22 +29,7 @@ class ShortsBlockerService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        
-        try {
-            val masterKey = MasterKey.Builder(this)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-
-            sharedPreferences = EncryptedSharedPreferences.create(
-                this,
-                "shorts_blocker_prefs",
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
