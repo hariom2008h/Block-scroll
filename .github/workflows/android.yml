@@ -1,0 +1,34 @@
+name: Android Cloud Compiler Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Configure Java JDK 17 Environment
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant Sandbox Execution Rights
+      run: chmod +x gradlew
+
+    - name: Execute Local Gradle Compile
+      run: ./gradlew assembleDebug
+
+    - name: Export Target Package Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: shorts-blocker-debug-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
