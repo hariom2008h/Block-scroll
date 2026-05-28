@@ -21,11 +21,8 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Grant Sandbox Execution Rights
-      run: chmod +x gradlew
-
     - name: Execute Local Gradle Compile
-      run: ./gradlew assembleDebug
+      run: gradle assembleDebug
 
     - name: Export Target Package Artifacts
       uses: actions/upload-artifact@v4
