@@ -189,6 +189,75 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                 }
             }
 
+            // Xiaomi & Poco OEM Fix Section
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "⚠️ Poco & Xiaomi (MIUI) Critical Fix Guide",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Xiaomi/Poco battery optimizations automatically kill background processes and show 'Not working'. Follow these quick steps to fix it:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "👉 Hindi Instructions / हिंदी में निर्देश:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "1. नीचे दिए बटन पर क्लिक करके 'App Settings' खोलें।\n" +
+                               "2. 'Autostart' (ऑटोस्टार्ट) को चालू (ON) करें।\n" +
+                               "3. 'Battery Saver' में जाकर 'No Restrictions' सेलेक्ट करें ताकि ऐप कभी भी बंद न हो।\n" +
+                               "4. अब 'Accessibility service' को दोबारा बंद करके चालू (Restart) करें।",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp)
+                    )
+                    Text(
+                        text = "👉 English Instructions:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "1. Click the button below to open 'App Settings'.\n" +
+                               "2. Turn ON the 'Autostart' toggle option.\n" +
+                               "3. Set 'Battery Saver' to 'No Restrictions' (stops the system from deep sleeping the app).\n" +
+                               "4. Now, turn Off and turn On the 'Accessibility' service again to activate.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open App Settings / ऐप सेटिंग्स खोलें", color = MaterialTheme.colorScheme.onError)
+                    }
+                }
+            }
+
             // Section 2: Security
             Text(
                 text = "Security",
