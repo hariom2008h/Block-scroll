@@ -24,6 +24,9 @@ class ShortsBlockerService : AccessibilityService() {
     private var isOverlayShowing = false
     private var sharedPreferences: SharedPreferences? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    
+    private var lastUnlockTime = 0L
+    private val UNLOCK_COOLDOWN_MS = 15000L // 15 seconds of friction-free time before next block
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -48,6 +51,12 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+
+        // If user recently entered the correct password, do not show lock overlay during cooldown period
+        val currentTime = System.currentTimeMillis()
+        if (currentTime < lastUnlockTime + UNLOCK_COOLDOWN_MS) {
+            return
+        }
 
         val eventType = event.eventType
         // Trigger on any scroll, content change, or window state change to guarantee it fires
@@ -104,6 +113,7 @@ class ShortsBlockerService : AccessibilityService() {
                     val enteredPassword = passwordInput?.text.toString()
 
                     if (enteredPassword == correctPassword) {
+                        lastUnlockTime = System.currentTimeMillis()
                         removeFrictionOverlay()
                     } else {
                         passwordInput?.error = "Incorrect Password"
