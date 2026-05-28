@@ -1,0 +1,6 @@
+{
+  "name": "Shorts Blocker",
+  "description": "Friction-by-design utility to block short-form video algorithms with a password overlay.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
