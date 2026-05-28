@@ -87,7 +87,9 @@ class ShortsBlockerService : AccessibilityService() {
         }
 
         try {
+            overlayView?.alpha = 0f
             windowManager.addView(overlayView, layoutParams)
+            overlayView?.animate()?.alpha(1f)?.setDuration(300)?.start()
             isOverlayShowing = true
         } catch (e: Exception) {
             e.printStackTrace()

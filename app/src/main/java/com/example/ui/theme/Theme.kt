@@ -10,14 +10,21 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+import com.example.ui.theme.SlateBlue40
+import com.example.ui.theme.SlateBlue80
+import com.example.ui.theme.SlateBlueGrey40
+import com.example.ui.theme.SlateBlueGrey80
+import com.example.ui.theme.SlatePink40
+import com.example.ui.theme.SlatePink80
+
 private val DarkColorScheme =
-  darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
+  darkColorScheme(primary = SlateBlue80, secondary = SlateBlueGrey80, tertiary = SlatePink80)
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
+    primary = SlateBlue40,
+    secondary = SlateBlueGrey40,
+    tertiary = SlatePink40,
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
