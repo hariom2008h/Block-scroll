@@ -169,9 +169,7 @@ class ShortsBlockerService : AccessibilityService() {
             if (viewId.contains("com.snapchat.android:id/spotlight") ||
                 viewId.contains("com.snapchat.android:id/ngs_spotlight") ||
                 viewId.contains("com.snapchat.android:id/discover_playback") ||
-                viewId.contains("com.snapchat.android:id/ngs_video") ||
-                viewId.contains("com.snapchat.android:id/neon_spotlight") ||
-                viewId.contains("com.snapchat.android:id/short_video")) {
+                viewId.contains("com.snapchat.android:id/neon_spotlight")) {
                 return true
             }
 
@@ -381,26 +379,17 @@ class ShortsBlockerService : AccessibilityService() {
 
                 if (!clickedChat) {
                     try {
-                        // Try deep link fallback for Chat (this often forces snapchat back stack reset)
-                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("snapchat://chat")).apply {
-                            setPackage(targetPackage)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP 
+                        // Hard fallback: Restart app which goes to Camera/Home
+                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                         }
-                        startActivity(intent)
-                    } catch (e: Exception) {
-                        try {
-                            // Hard fallback: Restart app which goes to Camera (where Chat is just one swipe away)
-                            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                            }
-                            if (launchIntent != null) {
-                                startActivity(launchIntent)
-                            } else {
-                                performGlobalAction(GLOBAL_ACTION_HOME)
-                            }
-                        } catch (e2: Exception) {
+                        if (launchIntent != null) {
+                            startActivity(launchIntent)
+                        } else {
                             performGlobalAction(GLOBAL_ACTION_HOME)
                         }
+                    } catch (e: Exception) {
+                        performGlobalAction(GLOBAL_ACTION_HOME)
                     }
                 }
                 return
