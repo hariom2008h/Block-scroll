@@ -26,6 +26,9 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastUnlockTime = 0L
     private val UNLOCK_COOLDOWN_MS = 15000L // 15 seconds of friction-free time before next block
+    
+    private var lastBackNavigationTime = 0L
+    private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -39,34 +42,50 @@ class ShortsBlockerService : AccessibilityService() {
         try {
             val packageName = event.packageName?.toString() ?: ""
 
-            // Critical safety feature: If the event is from another app/launcher (not YouTube, not Instagram, and not our app),
-            // we must immediately and automatically dismiss the blocking overlay to prevent trapping the user!
-            if (packageName.isNotEmpty()) {
-                val isTargetApp = packageName.contains("youtube") || packageName.contains("instagram")
-                val isOurApp = packageName == this.packageName
-                val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
-                val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
+            // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
+            val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
+            if (activeRoot != null) {
+                val activePackage = activeRoot.packageName?.toString() ?: ""
+                try { activeRoot.recycle() } catch (e: Exception) {}
+                
+                if (activePackage.isNotEmpty()) {
+                    val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram")
+                    val isOurAppActive = activePackage == this.packageName
+                    val isSystemActive = activePackage == "com.android.systemui" || activePackage == "android" 
+                    val isKeyboardActive = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
 
-                if (!isTargetApp && !isOurApp && !isSystemApp && !isKeyboard) {
-                    if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                        removeFrictionOverlay()
+                    // If user is in a completely different app, remove overlay safely
+                    if (!isTargetActive && !isOurAppActive && !isSystemActive && !isKeyboardActive) {
+                        if (isOverlayShowing) {
+                            removeFrictionOverlay()
+                        }
+                        return
                     }
-                    return
-                } else if (isSystemApp || isKeyboard) {
-                    // Ignore system UI and keyboard events, they happen while overlay is active
-                    return
                 }
             }
 
-            // Only run blocking checks when on YouTube or Instagram
-            val isTargetApp = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram"))
-            if (!isTargetApp) {
+            // 2. Filter accessibility events only for our targets
+            val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram"))
+            val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
+            val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
+
+            if (isSystemApp || isKeyboard) {
+                // Ignore background system UI events
+                return
+            }
+
+            if (!isTargetEvent) {
                 return
             }
 
             // If user recently entered the correct password, do not show lock overlay during cooldown period
             val currentTime = System.currentTimeMillis()
             if (currentTime < lastUnlockTime + UNLOCK_COOLDOWN_MS) {
+                return
+            }
+
+            // If user recently pressed "Go Back", wait for UI to exit shorts before checking again
+            if (currentTime < lastBackNavigationTime + BACK_NAVIGATION_COOLDOWN_MS) {
                 return
             }
 
@@ -84,9 +103,7 @@ class ShortsBlockerService : AccessibilityService() {
                     isAddictiveMedia = checkNodeForShortsOrReels(eventSource)
                     try {
                         eventSource.recycle()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    } catch (e: Exception) { /* ignore */ }
                 }
 
                 // Fallback: check whole visible active window layout hierarchy if the event source did not match
@@ -96,14 +113,16 @@ class ShortsBlockerService : AccessibilityService() {
                         isAddictiveMedia = checkNodeForShortsOrReels(rootNode)
                         try {
                             rootNode.recycle()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                        } catch (e: Exception) { /* ignore */ }
                     }
                 }
 
                 if (isAddictiveMedia) {
                     showFrictionOverlay()
+                } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                    // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
+                    // We don't do this on CONTENT_CHANGED to prevent flickering while shorts is still loading.
+                    removeFrictionOverlay()
                 }
             }
         } catch (e: Exception) {
@@ -221,16 +240,15 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 exitButton?.setOnClickListener {
-                    removeFrictionOverlay()
-                    try {
-                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                            addCategory(Intent.CATEGORY_HOME)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        startActivity(homeIntent)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    lastBackNavigationTime = System.currentTimeMillis()
+                    
+                    // Route the user out of the shorts feed forcefully
+                    redirectToSafeFeed()
+                    
+                    // Delay removing the overlay slightly so the user doesn't see the short while the app transitions
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        removeFrictionOverlay()
+                    }, 400)
                 }
 
                 overlayView?.alpha = 0f
@@ -242,6 +260,35 @@ class ShortsBlockerService : AccessibilityService() {
                 e.printStackTrace()
                 isOverlayShowing = false
             }
+        }
+    }
+
+    private fun redirectToSafeFeed() {
+        val root = try { rootInActiveWindow } catch (e: Exception) { null }
+        val currentPackage = root?.packageName?.toString() ?: ""
+        try { root?.recycle() } catch (e: Exception) {}
+
+        val targetPackage = if (currentPackage.contains("youtube")) {
+            currentPackage
+        } else if (currentPackage.contains("instagram")) {
+            currentPackage
+        } else {
+            ""
+        }
+
+        if (targetPackage.isNotEmpty()) {
+            try {
+                val url = if (targetPackage.contains("youtube")) "https://www.youtube.com/" else "https://www.instagram.com/"
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                    setPackage(targetPackage)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+        } else {
+            performGlobalAction(GLOBAL_ACTION_BACK)
         }
     }
 
