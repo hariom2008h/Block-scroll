@@ -16,6 +16,9 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 
+import android.view.accessibility.AccessibilityWindowInfo
+import android.view.accessibility.AccessibilityNodeInfo
+
 class ShortsBlockerService : AccessibilityService() {
 
     private lateinit var windowManager: WindowManager
@@ -263,32 +266,58 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
-    private fun redirectToSafeFeed() {
-        val root = try { rootInActiveWindow } catch (e: Exception) { null }
-        val currentPackage = root?.packageName?.toString() ?: ""
-        try { root?.recycle() } catch (e: Exception) {}
-
-        val targetPackage = if (currentPackage.contains("youtube")) {
-            currentPackage
-        } else if (currentPackage.contains("instagram")) {
-            currentPackage
-        } else {
-            ""
-        }
-
-        if (targetPackage.isNotEmpty()) {
-            try {
-                val url = if (targetPackage.contains("youtube")) "https://www.youtube.com/" else "https://www.instagram.com/"
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
-                    setPackage(targetPackage)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    private fun getTargetAppRootNode(): AccessibilityNodeInfo? {
+        try {
+            val windowsList = windows
+            for (window in windowsList) {
+                if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
+                    val root = try { window.root } catch (e: Exception) { null }
+                    if (root != null) {
+                        val pkgName = root.packageName?.toString() ?: ""
+                        if (pkgName.contains("youtube") || pkgName.contains("instagram")) {
+                            return root
+                        }
+                        root.recycle()
+                    }
                 }
-                startActivity(intent)
-            } catch (e: Exception) {
-                performGlobalAction(GLOBAL_ACTION_BACK)
             }
-        } else {
-            performGlobalAction(GLOBAL_ACTION_BACK)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return try { rootInActiveWindow } catch (e: Exception) { null }
+    }
+
+    private fun redirectToSafeFeed() {
+        var isInsta = false
+        var targetPackage = "com.google.android.youtube"
+        
+        try {
+            val root = getTargetAppRootNode()
+            if (root != null) {
+                val pkgName = root.packageName?.toString() ?: ""
+                if (pkgName.contains("instagram")) {
+                    isInsta = true
+                    targetPackage = pkgName
+                } else if (pkgName.contains("youtube")) {
+                    targetPackage = pkgName
+                }
+                root.recycle()
+            }
+        } catch (e: Exception) {}
+
+        try {
+            // Force the app to open its main web feed. The deep link intent intercepts and forces YouTube 
+            // home activity, cleanly escaping the shorts backstack without relying on fragile GLOBAL_ACTION_BACK
+            val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                setPackage(targetPackage)
+                // CLEAR_TOP pops the shorts activity if Home exists below it. SINGLE_TOP resumes it.
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            // Hard fallback if the intent fails for any reason
+            performGlobalAction(GLOBAL_ACTION_HOME)
         }
     }
 
