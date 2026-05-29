@@ -32,6 +32,8 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastBackNavigationTime = 0L
     private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
+    
+    private var lastBlockedPackage = ""
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -52,7 +54,7 @@ class ShortsBlockerService : AccessibilityService() {
                 try { activeRoot.recycle() } catch (e: Exception) {}
                 
                 if (activePackage.isNotEmpty()) {
-                    val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram")
+                    val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
                     val isOurAppActive = activePackage == this.packageName
                     val isSystemActive = activePackage == "com.android.systemui" || activePackage == "android" 
                     val isKeyboardActive = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
@@ -68,7 +70,7 @@ class ShortsBlockerService : AccessibilityService() {
             }
 
             // 2. Filter accessibility events only for our targets
-            val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram"))
+            val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
             val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
             val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
 
@@ -121,6 +123,7 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 if (isAddictiveMedia) {
+                    lastBlockedPackage = packageName
                     showFrictionOverlay()
                 } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                     // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
@@ -159,6 +162,16 @@ class ShortsBlockerService : AccessibilityService() {
                 viewId.contains("com.instagram.android:id/clips_post_container") ||
                 viewId.contains("com.instagram.android:id/clips_layout") ||
                 viewId.contains("com.instagram.android:id/reels_clip_container")) {
+                return true
+            }
+
+            // Filter Snapchat Spotlight elements precisely
+            if (viewId.contains("com.snapchat.android:id/spotlight") ||
+                viewId.contains("com.snapchat.android:id/ngs_spotlight") ||
+                viewId.contains("com.snapchat.android:id/discover_playback") ||
+                viewId.contains("com.snapchat.android:id/ngs_video") ||
+                viewId.contains("com.snapchat.android:id/neon_spotlight") ||
+                viewId.contains("com.snapchat.android:id/short_video")) {
                 return true
             }
 
@@ -274,7 +287,7 @@ class ShortsBlockerService : AccessibilityService() {
                     val root = try { window.root } catch (e: Exception) { null }
                     if (root != null) {
                         val pkgName = root.packageName?.toString() ?: ""
-                        if (pkgName.contains("youtube") || pkgName.contains("instagram")) {
+                        if (pkgName.contains("youtube") || pkgName.contains("instagram") || pkgName.contains("snapchat")) {
                             return root
                         }
                         root.recycle()
@@ -287,25 +300,112 @@ class ShortsBlockerService : AccessibilityService() {
         return try { rootInActiveWindow } catch (e: Exception) { null }
     }
 
+    private fun clickNodeByContentDescription(node: AccessibilityNodeInfo, keywords: List<String>): Boolean {
+        val desc = node.contentDescription?.toString()
+        val text = node.text?.toString()
+        
+        for (keyword in keywords) {
+            val matchDesc = desc != null && (desc.equals(keyword, ignoreCase = true) || 
+                desc.startsWith("$keyword,", ignoreCase = true) || 
+                desc.contains(keyword, ignoreCase = true))
+                
+            val matchText = text != null && (text.equals(keyword, ignoreCase = true) || 
+                text.contains(keyword, ignoreCase = true))
+
+            if (matchDesc || matchText) {
+                var clickableNode: AccessibilityNodeInfo? = node
+                var depth = 0
+                while (clickableNode != null && depth < 5) {
+                    if (clickableNode.isClickable) {
+                        val success = clickableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        if (success) return true
+                    }
+                    clickableNode = clickableNode.parent
+                    depth++
+                }
+            }
+        }
+        
+        for (i in 0 until node.childCount) {
+            val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
+            val clicked = clickNodeByContentDescription(child, keywords)
+            try { child.recycle() } catch (e: Exception) {}
+            if (clicked) return true
+        }
+        return false
+    }
+
     private fun redirectToSafeFeed() {
         var isInsta = false
+        var isSnapchat = false
         var targetPackage = "com.google.android.youtube"
         
         try {
-            val root = getTargetAppRootNode()
-            if (root != null) {
-                val pkgName = root.packageName?.toString() ?: ""
-                if (pkgName.contains("instagram")) {
-                    isInsta = true
-                    targetPackage = pkgName
-                } else if (pkgName.contains("youtube")) {
-                    targetPackage = pkgName
+            if (lastBlockedPackage.contains("instagram")) {
+                isInsta = true
+                targetPackage = lastBlockedPackage
+            } else if (lastBlockedPackage.contains("snapchat")) {
+                isSnapchat = true
+                targetPackage = lastBlockedPackage
+            } else if (lastBlockedPackage.contains("youtube")) {
+                targetPackage = lastBlockedPackage
+            } else {
+                val root = getTargetAppRootNode()
+                if (root != null) {
+                    val pkgName = root.packageName?.toString() ?: ""
+                    if (pkgName.contains("instagram")) {
+                        isInsta = true
+                        targetPackage = pkgName
+                    } else if (pkgName.contains("snapchat")) {
+                        isSnapchat = true
+                        targetPackage = pkgName
+                    } else if (pkgName.contains("youtube")) {
+                        targetPackage = pkgName
+                    }
+                    root.recycle()
                 }
-                root.recycle()
             }
         } catch (e: Exception) {}
 
         try {
+            if (isSnapchat) {
+                var clickedChat = false
+                try {
+                    val root = getTargetAppRootNode()
+                    if (root != null) {
+                        // First try to click Chat tab via UI node
+                        clickedChat = clickNodeByContentDescription(root, listOf("Chat", "Chats", "चैट"))
+                        try { root.recycle() } catch (e: Exception) {}
+                    }
+                } catch (e: Exception) {}
+
+                if (!clickedChat) {
+                    try {
+                        // Try deep link fallback for Chat (this often forces snapchat back stack reset)
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("snapchat://chat")).apply {
+                            setPackage(targetPackage)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP 
+                        }
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        try {
+                            // Hard fallback: Restart app which goes to Camera (where Chat is just one swipe away)
+                            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            }
+                            if (launchIntent != null) {
+                                startActivity(launchIntent)
+                            } else {
+                                performGlobalAction(GLOBAL_ACTION_HOME)
+                            }
+                        } catch (e2: Exception) {
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                        }
+                    }
+                }
+                return
+            }
+
             // Force the app to open its main web feed. The deep link intent intercepts and forces YouTube 
             // home activity, cleanly escaping the shorts backstack without relying on fragile GLOBAL_ACTION_BACK
             val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
