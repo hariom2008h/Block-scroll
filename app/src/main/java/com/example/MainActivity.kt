@@ -25,6 +25,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.foundation.Image
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.MyApplicationTheme
 
@@ -68,6 +76,10 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     }
     var showLockdownDialog by remember { mutableStateOf(false) }
     val isLockdownActive = System.currentTimeMillis() < lockdownEndTime
+    
+    val haptic = LocalHapticFeedback.current
+    
+    val blockedCount = sharedPrefs.getInt("shorts_blocked_total", 0)
 
 
     Column(
@@ -95,6 +107,41 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             
+            // Section 0: Stats
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = "Stats",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "$blockedCount",
+                        style = MaterialTheme.typography.displayMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "Distractions Blocked",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
             // Section 1: Permissions
             Text(
                 text = "System Access",
@@ -298,6 +345,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                     Switch(
                         checked = strictMode,
                         onCheckedChange = { 
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             strictMode = it 
                             sharedPrefs.edit().putBoolean("strict_mode", it).apply()
                         }
@@ -339,7 +387,10 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                         checked = isLockdownActive,
                         enabled = !isLockdownActive,
                         onCheckedChange = { 
-                            if (it) showLockdownDialog = true 
+                            if (it) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showLockdownDialog = true 
+                            }
                         }
                     )
                 }
@@ -355,6 +406,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
             confirmButton = {
                 Button(
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val newEndTime = System.currentTimeMillis() + (2 * 60 * 60 * 1000L) // 2 hours
                         sharedPrefs.edit().putLong("lockdown_end_time", newEndTime).apply()
                         lockdownEndTime = newEndTime

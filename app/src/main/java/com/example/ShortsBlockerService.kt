@@ -176,39 +176,31 @@ class ShortsBlockerService : AccessibilityService() {
     }
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
+        if (node == null || !node.isVisibleToUser) return false
 
         try {
             val viewId = node.viewIdResourceName ?: ""
+            val exactId = viewId.substringAfterLast("id/") // e.g. "shorts_player"
 
-            // Filter YouTube Shorts player elements precisely (prevent normal feed/search scrolls from being blocked)
-            if (viewId.contains("com.google.android.youtube:id/shorts_player") ||
-                viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
-                viewId.contains("com.google.android.youtube:id/reel_recycler") ||
-                viewId.contains("com.google.android.youtube:id/reel_container") ||
-                viewId.contains("com.google.android.youtube:id/shorts_container") ||
-                viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
-                viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
-                viewId.contains("com.google.android.youtube:id/panel_container")) {
-                return true
+            if (node.packageName?.contains("youtube") == true) {
+                if (exactId == "shorts_player" || 
+                    exactId == "shorts_video_player") {
+                    return true
+                }
+            }
+            
+            if (node.packageName?.contains("instagram") == true) {
+                if (exactId == "reels_viewer_pager" || 
+                    exactId == "clips_viewer_container" ||
+                    exactId == "reels_video_player_layout") {
+                    return true
+                }
             }
 
-            // Filter Instagram Reels elements precisely
-            if (viewId.contains("com.instagram.android:id/clips_video_container") ||
-                viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
-                viewId.contains("com.instagram.android:id/clips_viewer_container") ||
-                viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
-                viewId.contains("com.instagram.android:id/clips_post_container") ||
-                viewId.contains("com.instagram.android:id/clips_layout") ||
-                viewId.contains("com.instagram.android:id/reels_clip_container")) {
-                return true
-            }
-
-            // Filter Snapchat Spotlight elements precisely
-            if (viewId.contains("com.snapchat.android:id/spotlight") ||
-                viewId.contains("com.snapchat.android:id/ngs_spotlight") ||
-                viewId.contains("com.snapchat.android:id/neon_spotlight")) {
-                return true
+            if (node.packageName?.contains("snapchat") == true) {
+                if (exactId == "spotlight" || exactId == "ngs_spotlight") {
+                    return true
+                }
             }
 
             // Traverse hierarchy safely
@@ -291,11 +283,23 @@ class ShortsBlockerService : AccessibilityService() {
                         lastUnlockTime = System.currentTimeMillis()
                         removeFrictionOverlay()
                     } else {
+                        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            vibrator.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            vibrator.vibrate(100)
+                        }
+
                         if (isStrictMode) {
                             android.widget.Toast.makeText(applicationContext, "Strict Mode: Access Denied", android.widget.Toast.LENGTH_SHORT).show()
                             exitButton?.performClick()
                         } else {
                             passwordInput?.error = "Incorrect Password"
+                            val shake = android.view.animation.TranslateAnimation(0f, 20f, 0f, 0f)
+                            shake.duration = 50
+                            shake.repeatMode = android.view.animation.Animation.REVERSE
+                            shake.repeatCount = 5
+                            passwordInput?.startAnimation(shake)
                         }
                     }
                 }
@@ -316,6 +320,11 @@ class ShortsBlockerService : AccessibilityService() {
                 windowManager.addView(overlayView, layoutParams)
                 overlayView?.animate()?.alpha(1f)?.setDuration(250)?.start()
                 isOverlayShowing = true
+                
+                try {
+                    val totals = sharedPreferences?.getInt("shorts_blocked_total", 0) ?: 0
+                    sharedPreferences?.edit()?.putInt("shorts_blocked_total", totals + 1)?.apply()
+                } catch (e: Exception) {}
                 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -435,20 +444,24 @@ class ShortsBlockerService : AccessibilityService() {
                 } catch (e: Exception) {}
                 
                 if (clickedHome) return
+            } else {
+                var clickedHome = false
+                try {
+                    val root = getTargetAppRootNode()
+                    if (root != null) {
+                        clickedHome = clickNodeByContentDescription(root, listOf("Home", "होम"))
+                        try { root.recycle() } catch (e: Exception) {}
+                    }
+                } catch (e: Exception) {}
+                
+                if (clickedHome) return
             }
 
-            // Hard fallback: Restart app which goes to Home/Camera
-            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            if (launchIntent != null) {
-                startActivity(launchIntent)
-            } else {
-                performGlobalAction(GLOBAL_ACTION_HOME)
-            }
+            // Fallback: Perform Global Action Back to get out of the shorts feed
+            performGlobalAction(GLOBAL_ACTION_BACK)
         } catch (e: Exception) {
             // Hard fallback if the intent fails for any reason
-            performGlobalAction(GLOBAL_ACTION_HOME)
+            performGlobalAction(GLOBAL_ACTION_BACK)
         }
     }
 
