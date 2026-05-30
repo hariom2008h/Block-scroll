@@ -176,30 +176,26 @@ class ShortsBlockerService : AccessibilityService() {
     }
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
-        if (node == null || !node.isVisibleToUser) return false
+        if (node == null) return false
 
         try {
             val viewId = node.viewIdResourceName ?: ""
-            val exactId = viewId.substringAfterLast("id/") // e.g. "shorts_player"
+            if (viewId.isNotEmpty()) {
+                val exactId = viewId.substringAfterLast("id/")
+                var isSuspect = false
+                
+                if (viewId.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "reel_container" || exactId == "shorts_video_player" || exactId == "shorts_container")) isSuspect = true
+                if (viewId.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout")) isSuspect = true
+                if (viewId.contains("snapchat") && (exactId == "spotlight" || exactId == "ngs_spotlight" || exactId == "neon_spotlight")) isSuspect = true
 
-            if (node.packageName?.contains("youtube") == true) {
-                if (exactId == "shorts_player" || 
-                    exactId == "shorts_video_player") {
-                    return true
-                }
-            }
-            
-            if (node.packageName?.contains("instagram") == true) {
-                if (exactId == "reels_viewer_pager" || 
-                    exactId == "clips_viewer_container" ||
-                    exactId == "reels_video_player_layout") {
-                    return true
-                }
-            }
-
-            if (node.packageName?.contains("snapchat") == true) {
-                if (exactId == "spotlight" || exactId == "ngs_spotlight") {
-                    return true
+                if (isSuspect) {
+                    val rect = android.graphics.Rect()
+                    node.getBoundsInScreen(rect)
+                    val screenHeight = resources.displayMetrics.heightPixels
+                    // If the shorts component takes up more than half the screen, it's the immersive feed, not a shelf!
+                    if (rect.height() > screenHeight * 0.5) {
+                        return true
+                    }
                 }
             }
 
@@ -307,13 +303,13 @@ class ShortsBlockerService : AccessibilityService() {
                 exitButton?.setOnClickListener {
                     lastBackNavigationTime = System.currentTimeMillis()
                     
-                    // Route the user out of the shorts feed forcefully
-                    redirectToSafeFeed()
+                    // Remove overlay immediately so the underlying app regains window focus
+                    removeFrictionOverlay()
                     
-                    // Delay removing the overlay slightly so the user doesn't see the short while the app transitions
+                    // Trigger global action back after a short delay so it successfully exits the shorts player
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        removeFrictionOverlay()
-                    }, 400)
+                        redirectToSafeFeed()
+                    }, 150)
                 }
 
                 overlayView?.alpha = 0f
@@ -390,78 +386,11 @@ class ShortsBlockerService : AccessibilityService() {
     }
 
     private fun redirectToSafeFeed() {
-        var isInsta = false
-        var isSnapchat = false
-        var targetPackage = "com.google.android.youtube"
-        
         try {
-            if (lastBlockedPackage.contains("instagram")) {
-                isInsta = true
-                targetPackage = lastBlockedPackage
-            } else if (lastBlockedPackage.contains("snapchat")) {
-                isSnapchat = true
-                targetPackage = lastBlockedPackage
-            } else if (lastBlockedPackage.contains("youtube")) {
-                targetPackage = lastBlockedPackage
-            } else {
-                val root = getTargetAppRootNode()
-                if (root != null) {
-                    val pkgName = root.packageName?.toString() ?: ""
-                    if (pkgName.contains("instagram")) {
-                        isInsta = true
-                        targetPackage = pkgName
-                    } else if (pkgName.contains("snapchat")) {
-                        isSnapchat = true
-                        targetPackage = pkgName
-                    } else if (pkgName.contains("youtube")) {
-                        targetPackage = pkgName
-                    }
-                    root.recycle()
-                }
-            }
-        } catch (e: Exception) {}
-
-        try {
-            if (isSnapchat) {
-                var clickedChat = false
-                try {
-                    val root = getTargetAppRootNode()
-                    if (root != null) {
-                        clickedChat = clickNodeByContentDescription(root, listOf("Chat", "Chats", "चैट", "Camera", "Snap"))
-                        try { root.recycle() } catch (e: Exception) {}
-                    }
-                } catch (e: Exception) {}
-                
-                if (clickedChat) return
-            } else if (isInsta) {
-                var clickedHome = false
-                try {
-                    val root = getTargetAppRootNode()
-                    if (root != null) {
-                        clickedHome = clickNodeByContentDescription(root, listOf("Home", "Explore"))
-                        try { root.recycle() } catch (e: Exception) {}
-                    }
-                } catch (e: Exception) {}
-                
-                if (clickedHome) return
-            } else {
-                var clickedHome = false
-                try {
-                    val root = getTargetAppRootNode()
-                    if (root != null) {
-                        clickedHome = clickNodeByContentDescription(root, listOf("Home", "होम"))
-                        try { root.recycle() } catch (e: Exception) {}
-                    }
-                } catch (e: Exception) {}
-                
-                if (clickedHome) return
-            }
-
-            // Fallback: Perform Global Action Back to get out of the shorts feed
+            // Perform Global Action Back to get out of the shorts feed cleanly
             performGlobalAction(GLOBAL_ACTION_BACK)
         } catch (e: Exception) {
-            // Hard fallback if the intent fails for any reason
-            performGlobalAction(GLOBAL_ACTION_BACK)
+            e.printStackTrace()
         }
     }
 
