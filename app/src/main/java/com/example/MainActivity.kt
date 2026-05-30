@@ -58,6 +58,10 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     var password by remember { 
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
     }
+    
+    var strictMode by remember {
+        mutableStateOf(sharedPrefs.getBoolean("strict_mode", false))
+    }
 
     Column(
         modifier = modifier
@@ -245,6 +249,52 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                     ) {
                         Text("Save Credentials")
                     }
+                }
+            }
+
+            // Section 3: Strict Mode
+            Text(
+                text = "Modes",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Strict Mode",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Failed password immediately kicks you back to the safe feed. No second chances.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = strictMode,
+                        onCheckedChange = { 
+                            strictMode = it 
+                            sharedPrefs.edit().putBoolean("strict_mode", it).apply()
+                        }
+                    )
                 }
             }
         }

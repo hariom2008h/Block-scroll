@@ -243,13 +243,22 @@ class ShortsBlockerService : AccessibilityService() {
                         "I will not waste my time" // Hard fallback
                     }
                     
+                    val isStrictMode = try {
+                        sharedPreferences?.getBoolean("strict_mode", false) ?: false
+                    } catch (e: Exception) { false }
+                    
                     val enteredPassword = passwordInput?.text.toString()
 
                     if (enteredPassword == correctPassword) {
                         lastUnlockTime = System.currentTimeMillis()
                         removeFrictionOverlay()
                     } else {
-                        passwordInput?.error = "Incorrect Password"
+                        if (isStrictMode) {
+                            android.widget.Toast.makeText(applicationContext, "Strict Mode: Access Denied", android.widget.Toast.LENGTH_SHORT).show()
+                            exitButton?.performClick()
+                        } else {
+                            passwordInput?.error = "Incorrect Password"
+                        }
                     }
                 }
 
