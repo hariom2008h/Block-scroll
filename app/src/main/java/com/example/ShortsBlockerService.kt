@@ -53,6 +53,29 @@ class ShortsBlockerService : AccessibilityService() {
                 val activePackage = activeRoot.packageName?.toString() ?: ""
                 try { activeRoot.recycle() } catch (e: Exception) {}
                 
+                val lockdownEndTime = try {
+                    sharedPreferences?.getLong("lockdown_end_time", 0L) ?: 0L
+                } catch (e: Exception) { 0L }
+                
+                val isLockdownActive = System.currentTimeMillis() < lockdownEndTime
+
+                // In lockdown mode, prevent access to settings and package installer to stop uninstalls/accessibility revokes
+                if (isLockdownActive && (activePackage == "com.android.settings" || activePackage.contains("packageinstaller") || activePackage.contains("sec.android.app.myfiles"))) {
+                     val textContent = getVisibleText(activeRoot).lowercase()
+                     val hasOurApp = textContent.contains("shorts blocker") || textContent.contains(packageName.lowercase())
+                     val hasDangerousAction = textContent.contains("uninstall") || textContent.contains("delete") || 
+                                              textContent.contains("force stop") || textContent.contains("clear data") || 
+                                              textContent.contains("clear storage") || textContent.contains("stop shorts blocker") || 
+                                              textContent.contains("disable shorts blocker") || textContent.contains("turn off shorts blocker") ||
+                                              textContent.contains("use shorts blocker") || textContent.contains("shorts blocker shortcut")
+                     
+                     if (hasOurApp && hasDangerousAction) {
+                         android.widget.Toast.makeText(applicationContext, "Lockdown Mode is Active", android.widget.Toast.LENGTH_SHORT).show()
+                         performGlobalAction(GLOBAL_ACTION_HOME)
+                         return
+                     }
+                }
+
                 if (activePackage.isNotEmpty()) {
                     val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
                     val isOurAppActive = activePackage == this.packageName
@@ -136,6 +159,22 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
+    private fun getVisibleText(node: android.view.accessibility.AccessibilityNodeInfo?): String {
+        if (node == null) return ""
+        val text = StringBuilder()
+        if (node.text != null) text.append(node.text).append(" ")
+        if (node.contentDescription != null) text.append(node.contentDescription).append(" ")
+        
+        for (i in 0 until node.childCount) {
+            val child = try { node.getChild(i) } catch (e: Exception) { null }
+            if (child != null) {
+                text.append(getVisibleText(child))
+                try { child.recycle() } catch (e: Exception) {}
+            }
+        }
+        return text.toString()
+    }
+
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
 
@@ -168,7 +207,6 @@ class ShortsBlockerService : AccessibilityService() {
             // Filter Snapchat Spotlight elements precisely
             if (viewId.contains("com.snapchat.android:id/spotlight") ||
                 viewId.contains("com.snapchat.android:id/ngs_spotlight") ||
-                viewId.contains("com.snapchat.android:id/discover_playback") ||
                 viewId.contains("com.snapchat.android:id/neon_spotlight")) {
                 return true
             }
@@ -380,39 +418,34 @@ class ShortsBlockerService : AccessibilityService() {
                 try {
                     val root = getTargetAppRootNode()
                     if (root != null) {
-                        // First try to click Chat tab via UI node
-                        clickedChat = clickNodeByContentDescription(root, listOf("Chat", "Chats", "चैट"))
+                        clickedChat = clickNodeByContentDescription(root, listOf("Chat", "Chats", "चैट", "Camera", "Snap"))
                         try { root.recycle() } catch (e: Exception) {}
                     }
                 } catch (e: Exception) {}
-
-                if (!clickedChat) {
-                    try {
-                        // Hard fallback: Restart app which goes to Camera/Home
-                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        }
-                        if (launchIntent != null) {
-                            startActivity(launchIntent)
-                        } else {
-                            performGlobalAction(GLOBAL_ACTION_HOME)
-                        }
-                    } catch (e: Exception) {
-                        performGlobalAction(GLOBAL_ACTION_HOME)
+                
+                if (clickedChat) return
+            } else if (isInsta) {
+                var clickedHome = false
+                try {
+                    val root = getTargetAppRootNode()
+                    if (root != null) {
+                        clickedHome = clickNodeByContentDescription(root, listOf("Home", "Explore"))
+                        try { root.recycle() } catch (e: Exception) {}
                     }
-                }
-                return
+                } catch (e: Exception) {}
+                
+                if (clickedHome) return
             }
 
-            // Force the app to open its main web feed. The deep link intent intercepts and forces YouTube 
-            // home activity, cleanly escaping the shorts backstack without relying on fragile GLOBAL_ACTION_BACK
-            val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
-                setPackage(targetPackage)
-                // CLEAR_TOP pops the shorts activity if Home exists below it. SINGLE_TOP resumes it.
+            // Hard fallback: Restart app which goes to Home/Camera
+            val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            startActivity(intent)
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+            } else {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
         } catch (e: Exception) {
             // Hard fallback if the intent fails for any reason
             performGlobalAction(GLOBAL_ACTION_HOME)

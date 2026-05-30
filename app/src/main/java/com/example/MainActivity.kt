@@ -63,6 +63,13 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
         mutableStateOf(sharedPrefs.getBoolean("strict_mode", false))
     }
 
+    var lockdownEndTime by remember {
+        mutableStateOf(sharedPrefs.getLong("lockdown_end_time", 0L))
+    }
+    var showLockdownDialog by remember { mutableStateOf(false) }
+    val isLockdownActive = System.currentTimeMillis() < lockdownEndTime
+
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -297,7 +304,73 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = if (isLockdownActive) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Lockdown Mode (2 Hours)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isLockdownActive) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isLockdownActive) "Active until ${java.text.SimpleDateFormat("hh:mm a").format(java.util.Date(lockdownEndTime))}. Cannot be disabled." else "Prevents disabling Accessibility or uninstalling the app for 2 hours.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isLockdownActive) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isLockdownActive,
+                        enabled = !isLockdownActive,
+                        onCheckedChange = { 
+                            if (it) showLockdownDialog = true 
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    if (showLockdownDialog) {
+        AlertDialog(
+            onDismissRequest = { showLockdownDialog = false },
+            title = { Text("Activate Lockdown Mode?") },
+            text = { Text("This will prevent you from uninstalling the app or disabling the Accessibility service for the next 2 hours. ARE YOU SURE?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newEndTime = System.currentTimeMillis() + (2 * 60 * 60 * 1000L) // 2 hours
+                        sharedPrefs.edit().putLong("lockdown_end_time", newEndTime).apply()
+                        lockdownEndTime = newEndTime
+                        showLockdownDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("ACTIVATE")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLockdownDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
