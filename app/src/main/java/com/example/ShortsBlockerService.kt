@@ -180,24 +180,27 @@ class ShortsBlockerService : AccessibilityService() {
 
         try {
             val viewId = node.viewIdResourceName ?: ""
-            if (viewId.isNotEmpty()) {
-                val exactId = viewId.substringAfterLast("id/")
-                var isSuspect = false
-                
-                if (viewId.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "reel_container" || exactId == "shorts_video_player" || exactId == "shorts_container")) isSuspect = true
-                if (viewId.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout")) isSuspect = true
-                if (viewId.contains("snapchat") && (exactId == "spotlight" || exactId == "ngs_spotlight" || exactId == "neon_spotlight")) isSuspect = true
-
-                if (isSuspect) {
-                    val rect = android.graphics.Rect()
-                    node.getBoundsInScreen(rect)
-                    val screenHeight = resources.displayMetrics.heightPixels
-                    // If the shorts component takes up more than half the screen, it's the immersive feed, not a shelf!
-                    if (rect.height() > screenHeight * 0.5) {
-                        return true
-                    }
-                }
+            val exactId = if (viewId.isNotEmpty()) viewId.substringAfterLast("id/") else ""
+            val pkg = node.packageName?.toString() ?: ""
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            
+            if (pkg.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "reel_container" || exactId == "shorts_video_player" || exactId == "shorts_container")) {
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                val screenHeight = resources.displayMetrics.heightPixels
+                if (rect.height() > screenHeight * 0.82) return true
             }
+            if (pkg.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view")) {
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                val screenHeight = resources.displayMetrics.heightPixels
+                if (exactId == "reels_viewer_pager") return true // Definite immersive reel
+                if (rect.height() > screenHeight * 0.82) return true
+            }
+            if (pkg.contains("snapchat") && (exactId.contains("spotlight") || exactId == "neon_spotlight" || exactId == "df_main_pager" || desc.contains("spotlight"))) {
+                return true // Snapchat spotlight is almost always full screen and unmistakable
+            }
+
 
             // Traverse hierarchy safely
             val childCount = node.childCount
