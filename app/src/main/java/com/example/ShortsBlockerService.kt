@@ -35,6 +35,43 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastBlockedPackage = ""
 
+    private var isShortsOnScreen = false
+    private var isQuotaTrackerRunning = false
+
+    private val quotaTrackerRunnable = object : Runnable {
+        override fun run() {
+            if (isShortsOnScreen) {
+                val prefs = sharedPreferences ?: return
+                val quotaEnabled = prefs.getBoolean("quota_enabled", false)
+                if (quotaEnabled) {
+                    var used = prefs.getLong("quota_used_ms", 0L)
+                    val dateStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
+                    val lastDate = prefs.getString("quota_last_date", "")
+                    if (dateStr != lastDate) {
+                        used = 0L
+                        prefs.edit().putString("quota_last_date", dateStr).apply()
+                    }
+                    used += 1000L
+                    prefs.edit().putLong("quota_used_ms", used).apply()
+                    
+                    val limit = prefs.getLong("quota_limit_ms", 15 * 60 * 1000L)
+                    if (used >= limit) {
+                        mainHandler.post {
+                            Toast.makeText(this@ShortsBlockerService, "Daily Quota Exceeded!", Toast.LENGTH_LONG).show()
+                            showFrictionOverlay()
+                        }
+                        isShortsOnScreen = false // stop tracking to prevent loop
+                        isQuotaTrackerRunning = false
+                        return
+                    }
+                }
+                mainHandler.postDelayed(this, 1000)
+            } else {
+                isQuotaTrackerRunning = false
+            }
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -147,16 +184,84 @@ class ShortsBlockerService : AccessibilityService() {
 
                 if (isAddictiveMedia) {
                     lastBlockedPackage = packageName
-                    showFrictionOverlay()
-                } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                    // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
-                    // We don't do this on CONTENT_CHANGED to prevent flickering while shorts is still loading.
-                    removeFrictionOverlay()
+                    
+                    if (shouldBlockShorts()) {
+                        showFrictionOverlay()
+                        isShortsOnScreen = false
+                    } else {
+                        // User is allowed to watch, start tracking if quota is enabled
+                        isShortsOnScreen = true
+                        if (!isQuotaTrackerRunning) {
+                            isQuotaTrackerRunning = true
+                            mainHandler.postDelayed(quotaTrackerRunnable, 1000)
+                        }
+                    }
+                } else if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                    isShortsOnScreen = false // Left shorts completely
+                    if (isOverlayShowing) {
+                        // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
+                        removeFrictionOverlay()
+                    }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun shouldBlockShorts(): Boolean {
+        val prefs = sharedPreferences ?: return true
+        
+        val scheduleEnabled = prefs.getBoolean("schedule_enabled", false)
+        val quotaEnabled = prefs.getBoolean("quota_enabled", false)
+        
+        var block = true
+        
+        if (scheduleEnabled) {
+            val sh = prefs.getInt("schedule_start_hour", 9)
+            val sm = prefs.getInt("schedule_start_minute", 0)
+            val eh = prefs.getInt("schedule_end_hour", 17)
+            val em = prefs.getInt("schedule_end_minute", 0)
+            
+            val startMins = sh * 60 + sm
+            val endMins = eh * 60 + em
+            
+            val c = java.util.Calendar.getInstance()
+            val nowMins = c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+            
+            val inSchedule = if (startMins <= endMins) {
+                nowMins in startMins..endMins
+            } else {
+                nowMins >= startMins || nowMins <= endMins
+            }
+            
+            if (inSchedule) {
+                return true // Definitely block if within restricted schedule
+            } else {
+                block = false // allowed outside schedule
+            }
+        }
+        
+        if (quotaEnabled) {
+            val used = prefs.getLong("quota_used_ms", 0L)
+            val dateStr = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
+            val lastDate = prefs.getString("quota_last_date", "")
+            
+            val actualUsed = if (dateStr == lastDate) used else 0L
+            val limit = prefs.getLong("quota_limit_ms", 15 * 60 * 1000L)
+            
+            if (actualUsed >= limit) {
+                return true // Definitely block if quota exceeded
+            } else {
+                block = false // allowed if quota remains
+            }
+        }
+        
+        if (!scheduleEnabled && !quotaEnabled) {
+            return true // Default behavior: always block if both are disabled
+        }
+        
+        return block
     }
 
     private fun getVisibleText(node: android.view.accessibility.AccessibilityNodeInfo?): String {
@@ -188,17 +293,20 @@ class ShortsBlockerService : AccessibilityService() {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
-                if (rect.height() > screenHeight * 0.82) return true
+                if (rect.height() > screenHeight * 0.82 && node.isVisibleToUser) return true
             }
             if (pkg.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view")) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
-                if (exactId == "reels_viewer_pager") return true // Definite immersive reel
-                if (rect.height() > screenHeight * 0.82) return true
+                // Require height to be at least 85% of screen to confirm it's an immersive reel, not a feed preview
+                if (rect.height() > screenHeight * 0.85 && node.isVisibleToUser) return true
             }
-            if (pkg.contains("snapchat") && (exactId.contains("spotlight") || exactId == "neon_spotlight" || exactId == "df_main_pager" || desc.contains("spotlight"))) {
-                return true // Snapchat spotlight is almost always full screen and unmistakable
+            if (pkg.contains("snapchat") && (exactId.contains("spotlight") || exactId == "neon_spotlight" || exactId == "df_main_pager" || exactId.contains("layered_video_view") || desc.contains("spotlight"))) {
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                val screenHeight = resources.displayMetrics.heightPixels
+                if (rect.height() > screenHeight * 0.82 && node.isVisibleToUser) return true
             }
 
 
@@ -260,6 +368,12 @@ class ShortsBlockerService : AccessibilityService() {
             try {
                 val inflater = LayoutInflater.from(this)
                 overlayView = inflater.inflate(R.layout.overlay_password, null)
+
+                val customMessageText = overlayView?.findViewById<android.widget.TextView>(R.id.custom_message_text)
+                val msg = sharedPreferences?.getString("custom_block_message", "")
+                if (!msg.isNullOrEmpty()) {
+                    customMessageText?.text = msg
+                }
 
                 val passwordInput = overlayView?.findViewById<EditText>(R.id.password_input)
                 val unlockButton = overlayView?.findViewById<Button>(R.id.unlock_button)
