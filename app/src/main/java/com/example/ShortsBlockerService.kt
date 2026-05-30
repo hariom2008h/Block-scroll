@@ -289,20 +289,25 @@ class ShortsBlockerService : AccessibilityService() {
             val pkg = node.packageName?.toString() ?: ""
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
             
-            if (pkg.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "reel_container" || exactId == "shorts_video_player" || exactId == "shorts_container")) {
+            val prefs = sharedPreferences
+            val blockYt = prefs?.getBoolean("block_youtube", true) ?: true
+            val blockIg = prefs?.getBoolean("block_instagram", true) ?: true
+            val blockSc = prefs?.getBoolean("block_snapchat", true) ?: true
+            
+            if (blockYt && pkg.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "reel_container" || exactId == "shorts_video_player" || exactId == "shorts_container")) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
                 if (rect.height() > screenHeight * 0.82 && node.isVisibleToUser) return true
             }
-            if (pkg.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view")) {
+            if (blockIg && pkg.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view")) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
                 // Require height to be at least 85% of screen to confirm it's an immersive reel, not a feed preview
                 if (rect.height() > screenHeight * 0.85 && node.isVisibleToUser) return true
             }
-            if (pkg.contains("snapchat") && (exactId.contains("spotlight") || exactId == "neon_spotlight" || exactId == "df_main_pager" || exactId.contains("layered_video_view") || desc.contains("spotlight"))) {
+            if (blockSc && pkg.contains("snapchat") && (exactId.contains("spotlight") || exactId == "neon_spotlight" || exactId == "df_main_pager" || exactId.contains("layered_video_view") || desc.contains("spotlight"))) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
@@ -394,6 +399,7 @@ class ShortsBlockerService : AccessibilityService() {
 
                     if (enteredPassword == correctPassword) {
                         lastUnlockTime = System.currentTimeMillis()
+                        sharedPreferences?.edit()?.putLong("last_shorts_watch_time", lastUnlockTime)?.apply()
                         removeFrictionOverlay()
                     } else {
                         val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator

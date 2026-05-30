@@ -22,6 +22,10 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,10 +96,31 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
         quotaUsedMs = if (dateStr == lastDate) sharedPrefs.getLong("quota_used_ms", 0L) else 0L
     }
     
+    // App Target State
+    var blockYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("block_youtube", true)) }
+    var blockInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("block_instagram", true)) }
+    var blockSnapchat by remember { mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true)) }
+
     val haptic = LocalHapticFeedback.current
     
     val blockedCount = sharedPrefs.getInt("shorts_blocked_total", 0)
-
+    val totalTimeSavedMins = blockedCount * 5 // 5 minutes saved per block
+    val timeSavedStr = if (totalTimeSavedMins >= 60) {
+        "${totalTimeSavedMins / 60}h ${totalTimeSavedMins % 60}m"
+    } else {
+        "$totalTimeSavedMins mins"
+    }
+    
+    // Gamification
+    val installTime = sharedPrefs.getLong("app_install_date", System.currentTimeMillis())
+    if (!sharedPrefs.contains("app_install_date")) {
+        sharedPrefs.edit().putLong("app_install_date", installTime).apply()
+    }
+    val lastWatchTime = sharedPrefs.getLong("last_shorts_watch_time", 0L)
+    val referenceTime = if (lastWatchTime > 0) lastWatchTime else installTime
+    val diffMs = System.currentTimeMillis() - referenceTime
+    val streakDays = (diffMs / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(0)
+    val points = streakDays * 50 + blockedCount * 10
 
     Column(
         modifier = modifier
@@ -130,34 +155,238 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Lock,
-                        contentDescription = "Stats",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "$blockedCount",
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = "Distractions Blocked",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = "Stats",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "$blockedCount",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Blocks",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                    
+    Surface(
+        modifier = Modifier.width(1.dp).height(80.dp),
+        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+    ) {}
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.CheckCircle,
+            contentDescription = "Time Saved",
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(36.dp)
+        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = timeSavedStr,
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Time Saved",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
                 }
             }
 
-            // Section 1: Permissions
+            // Gamification Section
+            Text(
+                text = "Rewards & Achievements",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Current Streak",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(
+                                    text = "$streakDays",
+                                    style = MaterialTheme.typography.displayMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    text = " Days",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(bottom = 6.dp),
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                        
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Total Points",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Star, 
+                                    contentDescription = "Points",
+                                    tint = androidx.compose.ui.graphics.Color(0xFFFFD700),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "$points",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Badges Earned",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (streakDays >= 1 || blockedCount >= 5) {
+                            BadgeItem(title = "Starter", icon = Icons.Rounded.PlayArrow)
+                        } else {
+                            Text("No badges yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
+                        if (streakDays >= 3 || blockedCount >= 20) {
+                            BadgeItem(title = "Focused", icon = Icons.Rounded.CheckCircle)
+                        }
+                        if (streakDays >= 7) {
+                            BadgeItem(title = "Master", icon = Icons.Rounded.Star)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { shareStatsImage(context, streakDays, blockedCount, timeSavedStr) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(imageVector = Icons.Rounded.Share, contentDescription = "Share")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Share Progress to WhatsApp")
+                    }
+                }
+            }
+
+            // Section 1: App Targets
+            Text(
+                text = "Target Apps",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "YouTube Shorts", style = MaterialTheme.typography.bodyLarge)
+                        Switch(
+                            checked = blockYoutube,
+                            onCheckedChange = { 
+                                blockYoutube = it
+                                sharedPrefs.edit().putBoolean("block_youtube", it).apply()
+                            }
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Instagram Reels", style = MaterialTheme.typography.bodyLarge)
+                        Switch(
+                            checked = blockInstagram,
+                            onCheckedChange = { 
+                                blockInstagram = it
+                                sharedPrefs.edit().putBoolean("block_instagram", it).apply()
+                            }
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Snapchat Spotlight", style = MaterialTheme.typography.bodyLarge)
+                        Switch(
+                            checked = blockSnapchat,
+                            onCheckedChange = { 
+                                blockSnapchat = it
+                                sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Section 2: Permissions
             Text(
                 text = "System Access",
                 style = MaterialTheme.typography.titleMedium,
@@ -597,3 +826,93 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     }
 }
 
+@Composable
+fun BadgeItem(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp, horizontal = 12.dp)
+    ) {
+        Icon(imageVector = icon, contentDescription = title, tint = MaterialTheme.colorScheme.onPrimary)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+fun shareStatsImage(context: android.content.Context, streakDays: Int, blockedCount: Int, timeSavedStr: String) {
+    val width = 1080
+    val height = 1080
+    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    
+    val h = height.toFloat()
+    val w = width.toFloat()
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+    }
+    
+    val bgColors = intArrayOf(
+        android.graphics.Color.parseColor("#4B0082"),
+        android.graphics.Color.parseColor("#121212")
+    )
+    paint.shader = android.graphics.LinearGradient(
+        0f, 0f, 0f, h,
+        bgColors, null, android.graphics.Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, w, h, paint)
+    paint.shader = null
+    
+    paint.color = android.graphics.Color.WHITE
+    paint.textSize = 100f
+    paint.textAlign = android.graphics.Paint.Align.CENTER
+    paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    canvas.drawText("SHORTS BLOCKER", w / 2, 200f, paint)
+    
+    paint.color = android.graphics.Color.CYAN
+    paint.textSize = 50f
+    paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+    canvas.drawText("Reclaiming focus & digital detox!", w / 2, 300f, paint)
+
+    paint.color = android.graphics.Color.parseColor("#33FFFFFF")
+    canvas.drawRoundRect(100f, 400f, w - 100f, 950f, 40f, 40f, paint)
+    
+    paint.color = android.graphics.Color.WHITE
+    paint.textSize = 140f
+    paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    canvas.drawText("$streakDays DAYS", w / 2, 550f, paint)
+    
+    paint.textSize = 50f
+    paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+    canvas.drawText("Current Focus Streak", w / 2, 630f, paint)
+    
+    paint.color = android.graphics.Color.YELLOW
+    paint.textSize = 60f
+    canvas.drawText("$blockedCount Shorts Blocked", w / 2, 750f, paint)
+    
+    paint.color = android.graphics.Color.parseColor("#A8E6CF")
+    paint.textSize = 55f
+    canvas.drawText("Time Saved: $timeSavedStr", w / 2, 850f, paint)
+    
+    try {
+        val cachePath = java.io.File(context.cacheDir, "images")
+        cachePath.mkdirs()
+        val stream = java.io.FileOutputStream("$cachePath/share_stats.png")
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+        stream.close()
+        
+        val imagePath = java.io.File(context.cacheDir, "images/share_stats.png")
+        val contentUri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", imagePath)
+        
+        val shareIntent = android.content.Intent().apply {
+            action = android.content.Intent.ACTION_SEND
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            setDataAndType(contentUri, "image/png")
+            putExtra(android.content.Intent.EXTRA_STREAM, contentUri)
+            putExtra(android.content.Intent.EXTRA_TEXT, "See my detox progress! 🚀 Try Shorts Blocker and reclaim your time too! #ShortsBlocker #DigitalDetox")
+        }
+        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share your progress"))
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
