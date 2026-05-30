@@ -50,22 +50,20 @@ class MainActivity : ComponentActivity() {
         val sharedPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
         var showOnboarding by remember { mutableStateOf(sharedPrefs.getBoolean("show_onboarding", true)) }
 
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = MaterialTheme.colorScheme.background
-        ) { innerPadding ->
-          if (showOnboarding) {
+        if (showOnboarding) {
+          Scaffold(
+              modifier = Modifier.fillMaxSize(),
+              containerColor = MaterialTheme.colorScheme.background
+          ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
               OnboardingScreen(onFinish = {
                 sharedPrefs.edit().putBoolean("show_onboarding", false).apply()
                 showOnboarding = false
               })
             }
-          } else {
-            Box(modifier = Modifier.padding(innerPadding)) {
-              MainAppScreen()
-            }
           }
+        } else {
+          MainAppScreen()
         }
       }
     }

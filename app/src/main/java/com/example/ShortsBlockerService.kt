@@ -97,17 +97,18 @@ class ShortsBlockerService : AccessibilityService() {
                 val isLockdownActive = System.currentTimeMillis() < lockdownEndTime
 
                 // In lockdown mode, prevent access to settings and package installer to stop uninstalls/accessibility revokes
-                if (isLockdownActive && (activePackage == "com.android.settings" || activePackage.contains("packageinstaller") || activePackage.contains("sec.android.app.myfiles"))) {
+                if (isLockdownActive && (activePackage == "com.android.settings" || activePackage.contains("packageinstaller") || activePackage.contains("sec.android.app.myfiles") || activePackage.contains("securitycenter") || activePackage.contains("miui"))) {
                      val textContent = getVisibleText(activeRoot).lowercase()
-                     val hasOurApp = textContent.contains("shorts blocker") || textContent.contains(packageName.lowercase())
+                     val hasOurApp = textContent.contains("shorts blocker") || textContent.contains("shortsblocker") || textContent.contains(this.packageName.lowercase())
                      val hasDangerousAction = textContent.contains("uninstall") || textContent.contains("delete") || 
                                               textContent.contains("force stop") || textContent.contains("clear data") || 
                                               textContent.contains("clear storage") || textContent.contains("stop shorts blocker") || 
                                               textContent.contains("disable shorts blocker") || textContent.contains("turn off shorts blocker") ||
-                                              textContent.contains("use shorts blocker") || textContent.contains("shorts blocker shortcut")
+                                              textContent.contains("use shorts blocker") || textContent.contains("shorts blocker shortcut") ||
+                                              textContent.contains("accessibility") || activePackage.contains("packageinstaller")
                      
-                     if (hasOurApp && hasDangerousAction) {
-                         android.widget.Toast.makeText(applicationContext, "Lockdown Mode is Active", android.widget.Toast.LENGTH_SHORT).show()
+                     if (hasOurApp || hasDangerousAction) {
+                         android.widget.Toast.makeText(applicationContext, "Lockdown Mode is Active! Action blocked.", android.widget.Toast.LENGTH_SHORT).show()
                          performGlobalAction(GLOBAL_ACTION_HOME)
                          return
                      }
@@ -294,24 +295,24 @@ class ShortsBlockerService : AccessibilityService() {
             val blockIg = prefs?.getBoolean("block_instagram", true) ?: true
             val blockSc = prefs?.getBoolean("block_snapchat", true) ?: true
             
-            if (blockYt && pkg.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "reel_container" || exactId == "shorts_video_player" || exactId == "shorts_container")) {
+            if (blockYt && pkg.contains("youtube") && (exactId == "shorts_player" || exactId == "reel_recycler" || exactId.contains("reel") || exactId.contains("shorts"))) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
-                if (rect.height() > screenHeight * 0.82 && node.isVisibleToUser) return true
+                if (rect.height() > screenHeight * 0.65 && node.isVisibleToUser) return true
             }
-            if (blockIg && pkg.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view")) {
+            if (blockIg && pkg.contains("instagram") && (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view" || exactId.contains("reel"))) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
-                // Require height to be at least 85% of screen to confirm it's an immersive reel, not a feed preview
-                if (rect.height() > screenHeight * 0.85 && node.isVisibleToUser) return true
+                // Require height to be at least 65% of screen to confirm it's an immersive reel, not a feed preview
+                if (rect.height() > screenHeight * 0.65 && node.isVisibleToUser) return true
             }
             if (blockSc && pkg.contains("snapchat") && (exactId.contains("spotlight") || exactId == "neon_spotlight" || exactId == "df_main_pager" || exactId.contains("layered_video_view") || desc.contains("spotlight"))) {
                 val rect = android.graphics.Rect()
                 node.getBoundsInScreen(rect)
                 val screenHeight = resources.displayMetrics.heightPixels
-                if (rect.height() > screenHeight * 0.82 && node.isVisibleToUser) return true
+                if (rect.height() > screenHeight * 0.65 && node.isVisibleToUser) return true
             }
 
 
@@ -346,7 +347,8 @@ class ShortsBlockerService : AccessibilityService() {
         
         if (!Settings.canDrawOverlays(this)) {
             mainHandler.post {
-                Toast.makeText(this, "Shorts Blocker: Overlay Permission is required!", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Shorts Blocker: Overlay Permission is required! Redirecting to feed...", Toast.LENGTH_LONG).show()
+                redirectToSafeFeed()
             }
             return
         }
@@ -448,6 +450,9 @@ class ShortsBlockerService : AccessibilityService() {
             } catch (e: Exception) {
                 e.printStackTrace()
                 isOverlayShowing = false
+                // Fallback: If overlay fails on MIUI/POCO, just redirect immediately so it still blocks!
+                android.widget.Toast.makeText(applicationContext, "Shorts Blocked! (Overlay failed, auto-redirecting)", android.widget.Toast.LENGTH_SHORT).show()
+                redirectToSafeFeed()
             }
         }
     }
