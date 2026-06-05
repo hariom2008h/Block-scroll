@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -10,8 +11,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.ArrowForward
@@ -30,6 +33,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,8 +42,29 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    
+    // Live permission states
+    var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var isAccessibilityActive by remember { mutableStateOf(isAccessibilityServiceEnabled(context)) }
+    
+    // Check permission status whenever the activity is resumed
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isOverlayGranted = Settings.canDrawOverlays(context)
+                isAccessibilityActive = isAccessibilityServiceEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
+    val pagerState = rememberPagerState(pageCount = { 3 })
     
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -48,26 +73,184 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 modifier = Modifier.weight(1f)
             ) { page ->
                 when (page) {
-                    0 -> OnboardingPage(
+                    0 -> OnboardingPageContent(
                         icon = Icons.Rounded.Lock,
                         title = "Take Back Control",
-                        description = "Shorts Blocker helps you break free from the endless scrolling loop and reclaim your focused time."
+                        description = "Shorts Blocker helps you break free from the endless scrolling loop and reclaim your focused time.",
+                        visual = { AnimatedLockVisual() }
                     ) {
-                        AnimatedLockVisual()
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "To start blocking addictive shorts scrolling, we must enable two system-level access modes.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
-                    1 -> OnboardingPage(
+                    1 -> OnboardingPageContent(
                         icon = Icons.Rounded.Info,
-                        title = "Why Accessibility?",
-                        description = "To block short videos, we need permission to see when you've opened a target app like YouTube or Instagram."
+                        title = "1. Appear on Top (Overlay)",
+                        description = "This allows us to display the high-contrast countdown password popup over addictive scrolling layouts.",
+                        visual = { AnimatedShieldVisual() }
                     ) {
-                        AnimatedShieldVisual()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isOverlayGranted) 
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                else 
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = if (isOverlayGranted) Icons.Rounded.Check else Icons.Rounded.Info,
+                                        contentDescription = null,
+                                        tint = if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (isOverlayGranted) "Overlay Access: ACTIVE" else "Overlay Access: REQUIRED",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                Text(
+                                    text = if (isOverlayGranted) 
+                                        "Beautiful! The blocker dialog can now overlap addictive interfaces successfully." 
+                                    else 
+                                        "Click below, find \"Shorts Blocker\" in the system list, and enable \"Allow display over other apps\".",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION, 
+                                            Uri.parse("package:${context.packageName}")
+                                        ).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isOverlayGranted) 
+                                            MaterialTheme.colorScheme.secondary 
+                                        else 
+                                            MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(if (isOverlayGranted) "Already Granted" else "Grant Overlay Permission", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
-                    2 -> OnboardingPage(
+                    2 -> OnboardingPageContent(
                         icon = Icons.Rounded.Check,
-                        title = "Enable The Service",
-                        description = "When prompted, scroll down, find 'Shorts Blocker', and turn on the switch to start blocking."
+                        title = "2. Core Detection Service",
+                        description = "Our Accessibility service runs locally to stop addictive feeds. We never collect or send any personal data.",
+                        visual = { AnimatedHandVisual() }
                     ) {
-                        AnimatedHandVisual()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isAccessibilityActive) 
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                else 
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = if (isAccessibilityActive) Icons.Rounded.Check else Icons.Rounded.Info,
+                                        contentDescription = null,
+                                        tint = if (isAccessibilityActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (isAccessibilityActive) "Blocker Service: ACTIVE" else "Blocker Service: INACTIVE",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (isAccessibilityActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                Text(
+                                    text = if (isAccessibilityActive) 
+                                        "Fantastic! The short video detection and blocking engine is fully functional." 
+                                    else 
+                                        "Please tap below → Select \"Downloaded services\" or \"Installed services\" → Choose \"Shorts Blocker\" and turn the switch ON.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isAccessibilityActive) 
+                                            MaterialTheme.colorScheme.secondary 
+                                        else 
+                                            MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(if (isAccessibilityActive) "Already Activated" else "Enable Accessibility Service", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -76,7 +259,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(32.dp),
+                    .padding(horizontal = 32.dp, vertical = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -102,6 +285,14 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
                             }
                         } else {
+                            if (!isOverlayGranted || !isAccessibilityActive) {
+                                // Inform the user to prompt setting up both, but still let them exit
+                                android.widget.Toast.makeText(
+                                    context, 
+                                    "Both permissions must be granted for the blocker to work!", 
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
                             onFinish()
                         }
                     },
@@ -118,28 +309,35 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 }
 
 @Composable
-fun OnboardingPage(icon: ImageVector, title: String, description: String, visual: @Composable () -> Unit) {
+fun OnboardingPageContent(
+    icon: ImageVector, 
+    title: String, 
+    description: String, 
+    visual: @Composable () -> Unit,
+    extraContent: @Composable () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
         Box(
             modifier = Modifier
-                .weight(1f)
+                .height(200.dp)
                 .fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
             visual()
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(56.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
@@ -148,31 +346,49 @@ fun OnboardingPage(icon: ImageVector, title: String, description: String, visual
                 imageVector = icon, 
                 contentDescription = null, 
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         Text(
             text = description,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         
-        Spacer(modifier = Modifier.height(32.dp))
+        extraContent()
     }
+}
+
+fun isAccessibilityServiceEnabled(context: Context): Boolean {
+    val expectedComponentName = android.content.ComponentName(context, ShortsBlockerService::class.java)
+    val enabledServicesSetting = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+    colonSplitter.setString(enabledServicesSetting)
+    while (colonSplitter.hasNext()) {
+        val componentNameString = colonSplitter.next()
+        val enabledService = android.content.ComponentName.unflattenFromString(componentNameString)
+        if (enabledService != null && enabledService == expectedComponentName) {
+            return true
+        }
+    }
+    return false
 }
 
 @Composable
