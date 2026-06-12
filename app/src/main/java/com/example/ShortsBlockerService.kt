@@ -52,6 +52,9 @@ class ShortsBlockerService : AccessibilityService() {
     }
 
     private fun isTargetInForeground(): Boolean {
+        if (isOverlayShowing) {
+            return true
+        }
         val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
         if (activeRoot != null) {
             val activePackage = activeRoot.packageName?.toString() ?: ""
@@ -64,7 +67,7 @@ class ShortsBlockerService : AccessibilityService() {
                     return isTargetPackage(currentForegroundPackage)
                 }
                 if (activePackage == this.packageName) {
-                    return false
+                    return isTargetPackage(currentForegroundPackage)
                 }
                 return false
             }
@@ -291,8 +294,15 @@ class ShortsBlockerService : AccessibilityService() {
                 } else {
                     // It is a target app, but they've left the shorts/reels portion (e.g., watching regular videos, in profiles, in DM chat)
                     isShortsOnScreen = false
+                    
                     if (isOverlayShowing) {
-                        removeFrictionOverlay()
+                        // CRITICAL FIX: Only remove the overlay if they actually navigated to a new screen (WINDOW_STATE_CHANGED)
+                        // This prevents the overlay from closing itself repeatedly loop during background content updates.
+                        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                            removeFrictionOverlay()
+                        }
+                    } else {
+                        // Already not showing, nothing to do.
                     }
                 }
             }
@@ -477,8 +487,7 @@ class ShortsBlockerService : AccessibilityService() {
                     overlayView = null
                 }
                 
-                val themedContext = android.view.ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_NoActionBar)
-                val inflater = LayoutInflater.from(themedContext)
+                val inflater = LayoutInflater.from(this)
                 overlayView = inflater.inflate(R.layout.overlay_password, null)
 
                 val layoutParams = WindowManager.LayoutParams(
