@@ -31,7 +31,8 @@ class ShortsBlockerService : AccessibilityService() {
     private val UNLOCK_COOLDOWN_MS = 15000L // 15 seconds of friction-free time before next block
     
     private var lastBackNavigationTime = 0L
-    private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
+    private val BACK_NAVIGATION_COOLDOWN_MS = 3000L // Small cooldown to prevent loop after pressing Go Back
+    private var lastBlockAttemptTime = 0L
     
     private var lastBlockedPackage = ""
 
@@ -406,6 +407,13 @@ class ShortsBlockerService : AccessibilityService() {
     private fun showFrictionOverlay() {
         if (isOverlayShowing) return
         
+        val now = System.currentTimeMillis()
+        if (now - lastBlockAttemptTime < 3000) {
+            // Rate limit blocks to prevent endless fast looping
+            return
+        }
+        lastBlockAttemptTime = now
+        
         if (!Settings.canDrawOverlays(this)) {
             mainHandler.post {
                 Toast.makeText(this, "Shorts Blocker: Overlay Permission is required! Redirecting to feed...", Toast.LENGTH_LONG).show()
@@ -416,26 +424,37 @@ class ShortsBlockerService : AccessibilityService() {
 
         // Execute firmly on the UI Thread
         mainHandler.post {
-            if (isOverlayShowing) return@post
-            
-            val layoutParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_DIM_BEHIND,
-                PixelFormat.TRANSLUCENT
-            )
-            layoutParams.dimAmount = 0.65f
-
-            // Add Apple-style native blur support on Android 12 (API 31) and above
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-                layoutParams.blurBehindRadius = 60
-            }
-
             try {
-                val inflater = LayoutInflater.from(this)
+                if (overlayView != null) {
+                    try {
+                        windowManager.removeView(overlayView)
+                    } catch (ex: Exception) {
+                        // ignored
+                    }
+                    overlayView = null
+                }
+                
+                val themedContext = android.view.ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+                val inflater = LayoutInflater.from(themedContext)
                 overlayView = inflater.inflate(R.layout.overlay_password, null)
+
+                val layoutParams = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or 
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or 
+                    WindowManager.LayoutParams.FLAG_DIM_BEHIND or
+                    WindowManager.LayoutParams.FLAG_SECURE,
+                    PixelFormat.TRANSLUCENT
+                )
+                layoutParams.dimAmount = 0.65f
+
+                // Add Apple-style native blur support on Android 12 (API 31) and above
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                    layoutParams.blurBehindRadius = 60
+                }
 
                 val customMessageText = overlayView?.findViewById<android.widget.TextView>(R.id.custom_message_text)
                 val msg = sharedPreferences?.getString("custom_block_message", "")
@@ -446,6 +465,24 @@ class ShortsBlockerService : AccessibilityService() {
                 val passwordInput = overlayView?.findViewById<EditText>(R.id.password_input)
                 val unlockButton = overlayView?.findViewById<Button>(R.id.unlock_button)
                 val exitButton = overlayView?.findViewById<Button>(R.id.exit_button)
+                val passwordToggle = overlayView?.findViewById<android.widget.ImageView>(R.id.password_toggle)
+
+                var isPasswordVisible = false
+                passwordToggle?.setOnClickListener {
+                    isPasswordVisible = !isPasswordVisible
+                    val typeface = passwordInput?.typeface
+                    if (isPasswordVisible) {
+                        passwordInput?.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                        passwordToggle.setImageResource(R.drawable.ic_eye_hidden)
+                    } else {
+                        passwordInput?.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                        passwordToggle.setImageResource(R.drawable.ic_eye_visible)
+                    }
+                    passwordInput?.typeface = typeface
+                    passwordInput?.text?.let { text ->
+                        passwordInput.setSelection(text.length)
+                    }
+                }
 
                 unlockButton?.setOnClickListener {
                     val correctPassword = try {
@@ -511,9 +548,16 @@ class ShortsBlockerService : AccessibilityService() {
             } catch (e: Exception) {
                 e.printStackTrace()
                 isOverlayShowing = false
-                // Fallback: If overlay fails on MIUI/POCO, just redirect immediately so it still blocks!
-                android.widget.Toast.makeText(applicationContext, "Shorts Blocked! (Overlay failed, auto-redirecting)", android.widget.Toast.LENGTH_SHORT).show()
-                redirectToSafeFeed()
+                overlayView = null
+                lastBackNavigationTime = System.currentTimeMillis()
+                
+                // Fallback: If overlay fails on MIUI/POCO/Custom skins, minimize to home out of the dopamine loop!
+                android.widget.Toast.makeText(applicationContext, "Shorts Blocked! (Minimizing feed to home)", android.widget.Toast.LENGTH_LONG).show()
+                try {
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                } catch (homeEx: Exception) {
+                    redirectToSafeFeed()
+                }
             }
         }
     }
