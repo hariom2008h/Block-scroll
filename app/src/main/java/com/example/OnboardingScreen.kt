@@ -280,20 +280,51 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 
                 Button(
                     onClick = {
-                        if (pagerState.currentPage < 2) {
+                        if (pagerState.currentPage == 0) {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                pagerState.animateScrollToPage(1)
+                            }
+                        } else if (pagerState.currentPage == 1) {
+                            if (!isOverlayGranted) {
+                                android.widget.Toast.makeText(
+                                    context, 
+                                    "Please grant Overlay (Appear on Top) permission first!", 
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                try {
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(2)
+                                }
                             }
                         } else {
                             if (!isOverlayGranted || !isAccessibilityActive) {
-                                // Inform the user to prompt setting up both, but still let them exit
                                 android.widget.Toast.makeText(
                                     context, 
-                                    "Both permissions must be granted for the blocker to work!", 
+                                    "Both Overlay and Accessibility permissions are required to start blocking!", 
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
+                                if (!isOverlayGranted) {
+                                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    try { context.startActivity(intent) } catch (e: Exception) {}
+                                } else if (!isAccessibilityActive) {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    try { context.startActivity(intent) } catch (e: Exception) {}
+                                }
+                            } else {
+                                onFinish()
                             }
-                            onFinish()
                         }
                     },
                     shape = RoundedCornerShape(16.dp),

@@ -112,11 +112,14 @@ class ShortsBlockerService : AccessibilityService() {
                     
                     if (isSettingsOrInstaller && !isLauncher && activePackage != this.packageName) {
                          val textContent = getVisibleText(activeRoot).lowercase()
+                         
+                         // English & Hindi matches for our app name to prevent uninstalls
                          val hasOurApp = textContent.contains("shorts blocker") || 
                                          textContent.contains("shortsblocker") || 
-                                         textContent.contains("blocker") ||
+                                         textContent.contains("शॉर्ट्स ब्लॉकर") || 
                                          textContent.contains(this.packageName.lowercase())
                          
+                         // Support for both English and Hindi dangerous action strings (important for POCO/MIUI, Samsung, and Indian users)
                          val hasDangerousAction = textContent.contains("uninstall") || 
                                                   textContent.contains("delete") || 
                                                   textContent.contains("force stop") || 
@@ -128,13 +131,30 @@ class ShortsBlockerService : AccessibilityService() {
                                                   textContent.contains("use shorts blocker") || 
                                                   textContent.contains("shorts blocker shortcut") ||
                                                   textContent.contains("accessibility") ||
+                                                  textContent.contains("जबरन रोकें") || 
+                                                  textContent.contains("अनइंस्टॉल") || 
+                                                  textContent.contains("डेटा साफ़") || 
+                                                  textContent.contains("डेटा साफ") || 
+                                                  textContent.contains("साफ़ करें") || 
+                                                  textContent.contains("साफ करें") || 
+                                                  textContent.contains("बंद करें") || 
+                                                  textContent.contains("रोकें") || 
+                                                  textContent.contains("हटाएं") ||
                                                   activePackage.contains("packageinstaller")
                          
                          if (hasOurApp && hasDangerousAction) {
-                             android.widget.Toast.makeText(applicationContext, "Lockdown Mode is Active! Settings blocked.", android.widget.Toast.LENGTH_SHORT).show()
-                             performGlobalAction(GLOBAL_ACTION_HOME)
-                             try { activeRoot.recycle() } catch (e: Exception) {}
-                             return
+                             // To avoid false positives on list screens (e.g. main settings, apps list, battery stats),
+                             // verify if the screen displays multiple other app names. Our detail screen focuses exclusively on us.
+                             val otherApps = listOf("youtube", "instagram", "whatsapp", "facebook", "chrome", "gmail", "spotify", "maps")
+                             val otherAppsCount = otherApps.count { textContent.contains(it) }
+                             
+                             // If multiple other app names exist, it's just a general list screen, so DO NOT block.
+                             if (otherAppsCount < 2) {
+                                 android.widget.Toast.makeText(applicationContext, "Lockdown Mode is Active! Settings blocked.", android.widget.Toast.LENGTH_SHORT).show()
+                                 performGlobalAction(GLOBAL_ACTION_HOME)
+                                 try { activeRoot.recycle() } catch (e: Exception) {}
+                                 return
+                             }
                          }
                     }
                 }
