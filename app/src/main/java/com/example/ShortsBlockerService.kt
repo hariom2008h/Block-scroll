@@ -35,6 +35,42 @@ class ShortsBlockerService : AccessibilityService() {
     private var lastBlockAttemptTime = 0L
     
     private var lastBlockedPackage = ""
+    private var currentForegroundPackage = ""
+
+    private fun isTargetPackage(pkg: String): Boolean {
+        val lower = pkg.lowercase()
+        return lower.contains("youtube") || lower.contains("instagram") || lower.contains("snapchat")
+    }
+
+    private fun isNeutralPackage(pkg: String): Boolean {
+        val lower = pkg.lowercase()
+        return lower.contains("inputmethod") || 
+               lower.contains("keyboard") || 
+               lower.contains("gboard") || 
+               lower == "com.android.systemui" || 
+               lower == "android"
+    }
+
+    private fun isTargetInForeground(): Boolean {
+        val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
+        if (activeRoot != null) {
+            val activePackage = activeRoot.packageName?.toString() ?: ""
+            try { activeRoot.recycle() } catch (ex: Exception) {}
+            if (activePackage.isNotEmpty()) {
+                if (isTargetPackage(activePackage)) {
+                    return true
+                }
+                if (isNeutralPackage(activePackage)) {
+                    return isTargetPackage(currentForegroundPackage)
+                }
+                if (activePackage == this.packageName) {
+                    return false
+                }
+                return false
+            }
+        }
+        return isTargetPackage(currentForegroundPackage)
+    }
 
     private var isShortsOnScreen = false
     private var isQuotaTrackerRunning = false
@@ -83,7 +119,15 @@ class ShortsBlockerService : AccessibilityService() {
         if (event == null) return
 
         try {
-            val packageName = event.packageName?.toString() ?: ""
+            val eventPackage = event.packageName?.toString() ?: ""
+            val eventType = event.eventType
+
+            // Update current foreground package tracking on window state changes
+            if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && eventPackage.isNotEmpty()) {
+                if (!isNeutralPackage(eventPackage) && eventPackage != this.packageName) {
+                    currentForegroundPackage = eventPackage
+                }
+            }
 
             // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
             val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
@@ -178,17 +222,18 @@ class ShortsBlockerService : AccessibilityService() {
                 try { activeRoot.recycle() } catch (e: Exception) {}
             }
 
-            // 2. Filter accessibility events only for our targets
-            val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
-            val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
-            val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
-
-            if (isSystemApp || isKeyboard) {
-                // Ignore background system UI events
+            // 2. Early exit check: are we actually in a YouTube/Instagram/Snapchat context?
+            if (!isTargetInForeground()) {
+                // If they are on the Launcher, our app, Settings, or another non-neutral app, dismiss the overlay safely and stop the quota timer!
+                isShortsOnScreen = false
+                if (isOverlayShowing) {
+                    removeFrictionOverlay()
+                }
                 return
             }
 
-            if (!isTargetEvent) {
+            // 3. Only process block logic for target app events
+            if (!isTargetPackage(eventPackage)) {
                 return
             }
 
@@ -203,15 +248,14 @@ class ShortsBlockerService : AccessibilityService() {
                 return
             }
 
-            val eventType = event.eventType
-            // Trigger on any scroll, content change, or window state change to guarantee it fires
+            // Trigger detection on key events (scrolls, page transitions, window changes)
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
                 
                 var isAddictiveMedia = false
 
-                // Check event source node if available
+                // Try to detect Reels/Shorts from the event source node
                 val eventSource = event.source
                 if (eventSource != null) {
                     isAddictiveMedia = checkNodeForShortsOrReels(eventSource)
@@ -220,9 +264,9 @@ class ShortsBlockerService : AccessibilityService() {
                     } catch (e: Exception) { /* ignore */ }
                 }
 
-                // Fallback: check whole visible active window layout hierarchy if the event source did not match
+                // If not found in the source event, scan the entire foreground window's layout tree
                 if (!isAddictiveMedia) {
-                    val rootNode = rootInActiveWindow
+                    val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
                     if (rootNode != null) {
                         isAddictiveMedia = checkNodeForShortsOrReels(rootNode)
                         try {
@@ -232,23 +276,22 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 if (isAddictiveMedia) {
-                    lastBlockedPackage = packageName
-                    
+                    lastBlockedPackage = eventPackage
                     if (shouldBlockShorts()) {
                         showFrictionOverlay()
                         isShortsOnScreen = false
                     } else {
-                        // User is allowed to watch, start tracking if quota is enabled
+                        // User is in target feed and authorized (quota timer active)
                         isShortsOnScreen = true
                         if (!isQuotaTrackerRunning) {
                             isQuotaTrackerRunning = true
                             mainHandler.postDelayed(quotaTrackerRunnable, 1000)
                         }
                     }
-                } else if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                    isShortsOnScreen = false // Left shorts completely
+                } else {
+                    // It is a target app, but they've left the shorts/reels portion (e.g., watching regular videos, in profiles, in DM chat)
+                    isShortsOnScreen = false
                     if (isOverlayShowing) {
-                        // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
                         removeFrictionOverlay()
                     }
                 }
