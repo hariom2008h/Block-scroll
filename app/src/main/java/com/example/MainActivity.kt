@@ -38,6 +38,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Brush
+import com.example.ui.theme.GradientTop
+import com.example.ui.theme.GradientBottom
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -48,22 +51,31 @@ class MainActivity : ComponentActivity() {
       MyApplicationTheme {
         val context = LocalContext.current
         val sharedPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+        var showSplash by remember { mutableStateOf(true) }
         var showOnboarding by remember { mutableStateOf(sharedPrefs.getBoolean("show_onboarding", true)) }
 
-        if (showOnboarding) {
-          Scaffold(
-              modifier = Modifier.fillMaxSize(),
-              containerColor = MaterialTheme.colorScheme.background
-          ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding)) {
-              OnboardingScreen(onFinish = {
-                sharedPrefs.edit().putBoolean("show_onboarding", false).apply()
-                showOnboarding = false
-              })
-            }
-          }
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(1800)
+            showSplash = false
+        }
+
+        if (showSplash) {
+            LoadingScreen()
         } else {
-          MainAppScreen()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(GradientTop, GradientBottom)))
+            ) {
+                if (showOnboarding) {
+                    OnboardingScreen(onFinish = {
+                        sharedPrefs.edit().putBoolean("show_onboarding", false).apply()
+                        showOnboarding = false
+                    })
+                } else {
+                    MainAppScreen()
+                }
+            }
         }
       }
     }

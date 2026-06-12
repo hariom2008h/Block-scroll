@@ -40,12 +40,12 @@ fun TargetsScreen() {
     }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(text = "Targets & Limits", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Targets & Limits", fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
                 )
             )
         }

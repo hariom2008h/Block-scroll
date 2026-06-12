@@ -29,9 +29,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
+import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.ui.graphics.Brush
+import com.example.ui.theme.GradientTop
+import com.example.ui.theme.GradientBottom
+import com.example.ui.theme.PremiumDarkBg
+
 sealed class BottomNavItem(val title: String, val route: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     object Dashboard : BottomNavItem("Dashboard", "dashboard", Icons.Rounded.Home)
-    object Targets : BottomNavItem("Targets", "targets", Icons.Rounded.List)
+    object Targets : BottomNavItem("Targets", "targets", Icons.AutoMirrored.Rounded.List)
     object Settings : BottomNavItem("Settings", "settings", Icons.Rounded.Settings)
 }
 
@@ -45,36 +51,53 @@ fun MainAppScreen() {
         BottomNavItem.Settings
     )
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
-                items.forEach { item ->
-                    NavigationBarItem(
-                        icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
-                        label = { Text(text = item.title) },
-                        selected = currentRoute == item.route,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(GradientTop, GradientBottom)))
+    ) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            bottomBar = {
+                NavigationBar(
+                    containerColor = PremiumDarkBg.copy(alpha = 0.85f),
+                    contentColor = Color.White
+                ) {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    items.forEach { item ->
+                        NavigationBarItem(
+                            icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
+                            label = { Text(text = item.title) },
+                            selected = currentRoute == item.route,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = com.example.ui.theme.PremiumSecondary,
+                                selectedTextColor = com.example.ui.theme.PremiumSecondary,
+                                indicatorColor = com.example.ui.theme.PremiumAccentGlow.copy(alpha = 0.2f),
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray
+                            )
+                        )
+                    }
                 }
             }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(BottomNavItem.Dashboard.route) { DashboardScreen() }
-            composable(BottomNavItem.Targets.route) { TargetsScreen() }
-            composable(BottomNavItem.Settings.route) { SettingsScreen() }
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = BottomNavItem.Dashboard.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(BottomNavItem.Dashboard.route) { DashboardScreen() }
+                composable(BottomNavItem.Targets.route) { TargetsScreen() }
+                composable(BottomNavItem.Settings.route) { SettingsScreen() }
+            }
         }
     }
 }

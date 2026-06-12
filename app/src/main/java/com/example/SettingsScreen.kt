@@ -40,12 +40,12 @@ fun SettingsScreen() {
     val isLockdownActive = System.currentTimeMillis() < lockdownEndTime
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(text = "Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Settings", fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
                 )
             )
         }

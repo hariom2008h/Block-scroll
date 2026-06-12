@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
@@ -33,7 +33,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -332,7 +332,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 ) {
                     Text(if (pagerState.currentPage == 2) "Get Started" else "Next", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Icon(if (pagerState.currentPage == 2) Icons.Rounded.Check else Icons.Rounded.ArrowForward, contentDescription = null)
+                    Icon(if (pagerState.currentPage == 2) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null)
                 }
             }
         }
