@@ -18,6 +18,11 @@ import android.widget.Toast
 
 import android.view.accessibility.AccessibilityWindowInfo
 import android.view.accessibility.AccessibilityNodeInfo
+import com.example.data.DatabaseProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 class ShortsBlockerService : AccessibilityService() {
 
@@ -26,6 +31,10 @@ class ShortsBlockerService : AccessibilityService() {
     private var isOverlayShowing = false
     private var sharedPreferences: SharedPreferences? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    
+    private val serviceJob = Job()
+    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private var whitelistedChannels: Set<String> = emptySet()
     
     private var lastUnlockTime = 0L
     private val UNLOCK_COOLDOWN_MS = 15000L // 15 seconds of friction-free time before next block
@@ -39,6 +48,14 @@ class ShortsBlockerService : AccessibilityService() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+        
+        serviceScope.launch {
+            DatabaseProvider.getDatabase(this@ShortsBlockerService).whitelistDao()
+                .getAllChannels()
+                .collect { channels ->
+                    whitelistedChannels = channels.map { it.channelName.trim().lowercase() }.toSet()
+                }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -123,8 +140,21 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 if (isAddictiveMedia) {
-                    lastBlockedPackage = packageName
-                    showFrictionOverlay()
+                    var isWhitelistedCreator = false
+                    if (whitelistedChannels.isNotEmpty()) {
+                        val rootNode = getTargetAppRootNode()
+                        if (rootNode != null) {
+                            isWhitelistedCreator = isContentWhitelisted(rootNode, whitelistedChannels)
+                            try {
+                                rootNode.recycle()
+                            } catch (e: Exception) { /* ignore */ }
+                        }
+                    }
+
+                    if (!isWhitelistedCreator) {
+                        lastBlockedPackage = packageName
+                        showFrictionOverlay()
+                    }
                 } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                     // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
                     // We don't do this on CONTENT_CHANGED to prevent flickering while shorts is still loading.
@@ -134,6 +164,26 @@ class ShortsBlockerService : AccessibilityService() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun isContentWhitelisted(node: AccessibilityNodeInfo?, whitelistedNames: Set<String>): Boolean {
+        if (node == null) return false
+        
+        val text = node.text?.toString()?.trim()?.lowercase()
+        val desc = node.contentDescription?.toString()?.trim()?.lowercase()
+        
+        if (text != null && whitelistedNames.any { text.contains(it) }) return true
+        if (desc != null && whitelistedNames.any { desc.contains(it) }) return true
+        
+        for (i in 0 until node.childCount) {
+            val child = try { node.getChild(i) } catch (e: Exception) { null }
+            if (child != null) {
+                val found = isContentWhitelisted(child, whitelistedNames)
+                try { child.recycle() } catch (e: Exception) {}
+                if (found) return true
+            }
+        }
+        return false
     }
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
@@ -430,6 +480,7 @@ class ShortsBlockerService : AccessibilityService() {
     
     override fun onDestroy() {
         super.onDestroy()
+        serviceJob.cancel()
         removeFrictionOverlay()
     }
 }

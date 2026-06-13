@@ -18,9 +18,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.DatabaseProvider
+import com.example.data.WhitelistRepository
+import com.example.viewmodel.WhitelistViewModel
+import com.example.viewmodel.WhitelistViewModelFactory
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +59,11 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     
+    val database = remember { DatabaseProvider.getDatabase(context.applicationContext) }
+    val repository = remember { WhitelistRepository(database.whitelistDao()) }
+    val whitelistViewModel: WhitelistViewModel = viewModel(factory = WhitelistViewModelFactory(repository))
+    val whitelistedChannels by whitelistViewModel.uiState.collectAsStateWithLifecycle()
+
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
@@ -244,6 +257,108 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text("Save Credentials")
+                    }
+                }
+            }
+
+            // Section 3: Whitelist
+            Text(
+                text = "Whitelist",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.List,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Allowed Creators",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Added channels/creators will not be blocked. Enter their exact name below.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    var newChannel by remember { mutableStateOf("") }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = newChannel,
+                            onValueChange = { newChannel = it },
+                            label = { Text("Channel Name") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                if (newChannel.isNotBlank()) {
+                                    whitelistViewModel.addChannel(newChannel)
+                                    newChannel = ""
+                                }
+                            }
+                        ) {
+                            Text("Add")
+                        }
+                    }
+
+                    if (whitelistedChannels.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        whitelistedChannels.forEach { channel ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = channel.channelName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                IconButton(
+                                    onClick = { whitelistViewModel.removeChannel(channel.channelName) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Delete,
+                                        contentDescription = "Remove \${channel.channelName}",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
