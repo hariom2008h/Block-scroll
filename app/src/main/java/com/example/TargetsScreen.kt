@@ -25,6 +25,8 @@ fun TargetsScreen() {
     var blockYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("block_youtube", true)) }
     var blockInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("block_instagram", true)) }
     var blockSnapchat by remember { mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true)) }
+    var blockTiktok by remember { mutableStateOf(sharedPrefs.getBoolean("block_tiktok", true)) }
+    var blockFacebook by remember { mutableStateOf(sharedPrefs.getBoolean("block_facebook", true)) }
 
     var scheduleEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("schedule_enabled", false)) }
     var scheduleStartHour by remember { mutableStateOf(sharedPrefs.getInt("schedule_start_hour", 9)) }
@@ -79,6 +81,16 @@ fun TargetsScreen() {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(text = "Snapchat Spotlight", style = MaterialTheme.typography.bodyLarge)
                         Switch(checked = blockSnapchat, onCheckedChange = { blockSnapchat = it; sharedPrefs.edit().putBoolean("block_snapchat", it).apply() })
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "TikTok", style = MaterialTheme.typography.bodyLarge)
+                        Switch(checked = blockTiktok, onCheckedChange = { blockTiktok = it; sharedPrefs.edit().putBoolean("block_tiktok", it).apply() })
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Facebook Reels", style = MaterialTheme.typography.bodyLarge)
+                        Switch(checked = blockFacebook, onCheckedChange = { blockFacebook = it; sharedPrefs.edit().putBoolean("block_facebook", it).apply() })
                     }
                 }
             }

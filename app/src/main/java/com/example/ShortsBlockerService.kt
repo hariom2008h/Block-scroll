@@ -39,7 +39,14 @@ class ShortsBlockerService : AccessibilityService() {
 
     private fun isTargetPackage(pkg: String): Boolean {
         val lower = pkg.lowercase()
-        return lower.contains("youtube") || lower.contains("instagram") || lower.contains("snapchat")
+        return lower.contains("youtube") || 
+               lower.contains("instagram") || 
+               lower.contains("snapchat") ||
+               lower.contains("tiktok") ||
+               lower.contains("musically") ||
+               lower.contains("trill") ||
+               lower.contains("aweme") ||
+               lower.contains("facebook")
     }
 
     private fun isNeutralPackage(pkg: String): Boolean {
@@ -208,7 +215,7 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 if (activePackage.isNotEmpty()) {
-                    val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
+                    val isTargetActive = isTargetPackage(activePackage)
                     val isOurAppActive = activePackage == this.packageName
                     val isSystemActive = activePackage == "com.android.systemui" || activePackage == "android" 
                     val isKeyboardActive = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
@@ -395,9 +402,12 @@ class ShortsBlockerService : AccessibilityService() {
             val blockYt = prefs?.getBoolean("block_youtube", true) ?: true
             val blockIg = prefs?.getBoolean("block_instagram", true) ?: true
             val blockSc = prefs?.getBoolean("block_snapchat", true) ?: true
+            val blockTk = prefs?.getBoolean("block_tiktok", true) ?: true
+            val blockFb = prefs?.getBoolean("block_facebook", true) ?: true
             
-            if (blockYt && pkg.contains("youtube")) {
-                if (exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "shorts_video_player" || exactId == "shorts_container") {
+            // From Scrolless approach for maximum accuracy
+            if (blockYt && (pkg.contains("youtube") || pkg.contains("revanced"))) {
+                if (exactId == "reel_player_page_container" || exactId == "shorts_player" || exactId == "reel_recycler" || exactId == "shorts_video_player" || exactId == "shorts_container") {
                     return true
                 }
                 if (exactId.contains("reel") || exactId.contains("shorts")) {
@@ -408,7 +418,7 @@ class ShortsBlockerService : AccessibilityService() {
                 }
             }
             if (blockIg && pkg.contains("instagram")) {
-                if (exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view" || exactId == "reels_viewer_container") {
+                if (exactId == "clips_viewer_view_pager" || exactId == "clips_video_container" || exactId == "reels_viewer_pager" || exactId == "reels_video_player_layout" || exactId == "reels_clip_container" || exactId == "clips_layout" || exactId == "bottom_sheet_container_view" || exactId == "reels_viewer_container") {
                     return true
                 }
                 if (exactId.contains("reel") || exactId.contains("clips")) {
@@ -419,7 +429,7 @@ class ShortsBlockerService : AccessibilityService() {
                 }
             }
             if (blockSc && pkg.contains("snapchat")) {
-                if (exactId == "neon_spotlight" || exactId == "df_main_pager") {
+                if (exactId == "spotlight_container" || exactId == "neon_spotlight" || exactId == "df_main_pager") {
                     return true
                 }
                 if (exactId.contains("spotlight") || exactId.contains("layered_video_view") || desc.contains("spotlight")) {
@@ -427,6 +437,31 @@ class ShortsBlockerService : AccessibilityService() {
                     node.getBoundsInScreen(rect)
                     val screenHeight = resources.displayMetrics.heightPixels
                     if (rect.height() > screenHeight * 0.50) return true
+                }
+            }
+            // Add TikTok block (Scrolless strategy)
+            if (blockTk && (pkg.contains("musically") || pkg.contains("trill") || pkg.contains("aweme") || pkg.contains("tiktok"))) {
+                if (exactId == "player_view" || exactId.contains("video_view")) {
+                    return true
+                }
+            }
+            // Add Facebook/Facebook Lite block (Scrolless strategy)
+            if (blockFb && pkg.contains("facebook")) {
+                if (pkg.contains("lite") && exactId == "video_view") {
+                    return true
+                }
+                val rawDesc = node.contentDescription?.toString() ?: ""
+                if (rawDesc == "FbShortsComposerAttachmentComponentSpec_STICKER" || 
+                    rawDesc == "FbShortsComposerAttachmentComponentSpec_GIF") {
+                    return true
+                }
+                if (rawDesc.startsWith("Reels, tab") && node.isSelected) {
+                    val rect = android.graphics.Rect()
+                    node.getBoundsInScreen(rect)
+                    val screenHeight = resources.displayMetrics.heightPixels
+                    if (rect.top <= screenHeight * 0.20) {
+                        return true
+                    }
                 }
             }
 
@@ -622,7 +657,7 @@ class ShortsBlockerService : AccessibilityService() {
                     val root = try { window.root } catch (e: Exception) { null }
                     if (root != null) {
                         val pkgName = root.packageName?.toString() ?: ""
-                        if (pkgName.contains("youtube") || pkgName.contains("instagram") || pkgName.contains("snapchat")) {
+                        if (isTargetPackage(pkgName)) {
                             return root
                         }
                         root.recycle()
