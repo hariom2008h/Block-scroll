@@ -17,22 +17,8 @@ import com.example.ui.theme.SlateBlueGrey80
 import com.example.ui.theme.SlatePink40
 import com.example.ui.theme.SlatePink80
 
-import com.example.ui.theme.PremiumDarkBg
-import com.example.ui.theme.PremiumDarkSurface
-import com.example.ui.theme.PremiumAccentGlow
-import com.example.ui.theme.PremiumSecondary
-
 private val DarkColorScheme =
-  darkColorScheme(
-      primary = PremiumAccentGlow,
-      secondary = PremiumSecondary,
-      tertiary = SlatePink80,
-      background = PremiumDarkBg,
-      surface = PremiumDarkSurface,
-      onPrimary = androidx.compose.ui.graphics.Color.White,
-      onBackground = androidx.compose.ui.graphics.Color.White,
-      onSurface = androidx.compose.ui.graphics.Color.White
-  )
+  darkColorScheme(primary = SlateBlue80, secondary = SlateBlueGrey80, tertiary = SlatePink80)
 
 private val LightColorScheme =
   lightColorScheme(
