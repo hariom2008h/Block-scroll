@@ -18,17 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.data.DatabaseProvider
-import com.example.data.WhitelistRepository
-import com.example.viewmodel.WhitelistViewModel
-import com.example.viewmodel.WhitelistViewModelFactory
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -58,11 +51,6 @@ class MainActivity : ComponentActivity() {
 fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    
-    val database = remember { DatabaseProvider.getDatabase(context.applicationContext) }
-    val repository = remember { WhitelistRepository(database.whitelistDao()) }
-    val whitelistViewModel: WhitelistViewModel = viewModel(factory = WhitelistViewModelFactory(repository))
-    val whitelistedChannels by whitelistViewModel.uiState.collectAsStateWithLifecycle()
 
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
@@ -70,6 +58,20 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
 
     var password by remember { 
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
+    }
+    var showSystemAccessDialog by remember { mutableStateOf(false) }
+    
+    var isStrictMode by remember {
+        mutableStateOf(sharedPrefs.getBoolean("strict_mode", false))
+    }
+    var blockYoutube by remember {
+        mutableStateOf(sharedPrefs.getBoolean("block_youtube", true))
+    }
+    var blockInstagram by remember {
+        mutableStateOf(sharedPrefs.getBoolean("block_instagram", true))
+    }
+    var blockSnapchat by remember {
+        mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true))
     }
 
     Column(
@@ -84,6 +86,15 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                     fontWeight = FontWeight.Bold
                 )
             },
+            actions = {
+                IconButton(onClick = { showSystemAccessDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Rounded.Settings,
+                        contentDescription = "System Access Settings",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 titleContentColor = MaterialTheme.colorScheme.primary,
@@ -97,9 +108,9 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             
-            // Section 1: Permissions
+            // Section 1: Blocking Rules
             Text(
-                text = "System Access",
+                text = "Blocking Rules",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
@@ -113,84 +124,101 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                    val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                ) {
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = if (isStrictMode) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Strict Mode",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Instantly close Shorts/Reels. No password prompt.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isStrictMode,
+                            onCheckedChange = {
+                                isStrictMode = it
+                                sharedPrefs.edit().putBoolean("strict_mode", it).apply()
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.List,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Target Apps",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = overlayIcon,
-                            contentDescription = null,
-                            tint = overlayColor,
-                            modifier = Modifier.size(32.dp)
+                        Text("YouTube Shorts", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = blockYoutube,
+                            onCheckedChange = {
+                                blockYoutube = it
+                                sharedPrefs.edit().putBoolean("block_youtube", it).apply()
+                            }
                         )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Overlay Permission",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (isOverlayGranted) "Active" else "Required",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Button(
-                            onClick = {
-                                val intent = Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:${context.packageName}")
-                                )
-                                context.startActivity(intent)
-                            },
-                        ) {
-                            Text(if (isOverlayGranted) "Manage" else "Grant")
-                        }
                     }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Settings,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
+                        Text("Instagram Reels", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = blockInstagram,
+                            onCheckedChange = {
+                                blockInstagram = it
+                                sharedPrefs.edit().putBoolean("block_instagram", it).apply()
+                            }
                         )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Accessibility Service",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Required to intercept scrolls",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        FilledTonalButton(
-                            onClick = {
-                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                context.startActivity(intent)
-                            },
-                        ) {
-                            Text("Enable")
-                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Snapchat Spotlight", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = blockSnapchat,
+                            onCheckedChange = {
+                                blockSnapchat = it
+                                sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
+                            }
+                        )
                     }
                 }
             }
-
-
 
             // Section 2: Security
             Text(
@@ -247,6 +275,25 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                         shape = RoundedCornerShape(12.dp)
                     )
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val hasMinLength = password.length >= 6
+                    val hasUpper = password.any { it.isUpperCase() }
+                    val hasLower = password.any { it.isLowerCase() }
+                    val hasDigit = password.any { it.isDigit() }
+                    val hasSpecial = password.any { !it.isLetterOrDigit() }
+                    val hasNoRepeats = password.isNotEmpty() && password.toSet().size == password.length
+                    val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        PasswordCriterion(text = "At least 6 characters", met = hasMinLength)
+                        PasswordCriterion(text = "Contains uppercase letter", met = hasUpper)
+                        PasswordCriterion(text = "Contains lowercase letter", met = hasLower)
+                        PasswordCriterion(text = "Contains a number", met = hasDigit)
+                        PasswordCriterion(text = "Contains a special symbol", met = hasSpecial)
+                        PasswordCriterion(text = "No repeated characters", met = hasNoRepeats)
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
@@ -254,115 +301,121 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                             sharedPrefs.edit().putString("master_password", password).apply()
                             Toast.makeText(context, "Password Saved securely", Toast.LENGTH_SHORT).show()
                         },
+                        enabled = isValidPassword,
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text("Save Credentials")
                     }
                 }
             }
+        }
 
-            // Section 3: Whitelist
-            Text(
-                text = "Whitelist",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.List,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Allowed Creators",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Added channels/creators will not be blocked. Enter their exact name below.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    var newChannel by remember { mutableStateOf("") }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = newChannel,
-                            onValueChange = { newChannel = it },
-                            label = { Text("Channel Name") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Button(
-                            onClick = {
-                                if (newChannel.isNotBlank()) {
-                                    whitelistViewModel.addChannel(newChannel)
-                                    newChannel = ""
-                                }
-                            }
-                        ) {
-                            Text("Add")
-                        }
-                    }
-
-                    if (whitelistedChannels.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                        Spacer(modifier = Modifier.height(8.dp))
+        if (showSystemAccessDialog) {
+            AlertDialog(
+                onDismissRequest = { showSystemAccessDialog = false },
+                title = { Text("System Access") },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                        val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
                         
-                        whitelistedChannels.forEach { channel ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = overlayIcon,
+                                contentDescription = null,
+                                tint = overlayColor,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = channel.channelName,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
+                                    text = "Overlay Permission",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                                IconButton(
-                                    onClick = { whitelistViewModel.removeChannel(channel.channelName) }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Delete,
-                                        contentDescription = "Remove \${channel.channelName}",
-                                        tint = MaterialTheme.colorScheme.error
+                                Text(
+                                    text = if (isOverlayGranted) "Active" else "Required",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
                                     )
-                                }
+                                    context.startActivity(intent)
+                                },
+                            ) {
+                                Text(if (isOverlayGranted) "Manage" else "Grant")
                             }
                         }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Settings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Accessibility",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "To intercept scrolls",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
+                                },
+                            ) {
+                                Text("Enable")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSystemAccessDialog = false }) {
+                        Text("Close")
                     }
                 }
-            }
+            )
         }
+    }
+}
+
+@Composable
+fun PasswordCriterion(text: String, met: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = if (met) Icons.Rounded.CheckCircle else Icons.Rounded.Warning,
+            contentDescription = null,
+            tint = if (met) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (met) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
     }
 }
 

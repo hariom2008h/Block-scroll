@@ -18,11 +18,6 @@ import android.widget.Toast
 
 import android.view.accessibility.AccessibilityWindowInfo
 import android.view.accessibility.AccessibilityNodeInfo
-import com.example.data.DatabaseProvider
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 class ShortsBlockerService : AccessibilityService() {
 
@@ -31,10 +26,6 @@ class ShortsBlockerService : AccessibilityService() {
     private var isOverlayShowing = false
     private var sharedPreferences: SharedPreferences? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    
-    private val serviceJob = Job()
-    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
-    private var whitelistedChannels: Set<String> = emptySet()
     
     private var lastUnlockTime = 0L
     private val UNLOCK_COOLDOWN_MS = 15000L // 15 seconds of friction-free time before next block
@@ -48,14 +39,6 @@ class ShortsBlockerService : AccessibilityService() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
-        
-        serviceScope.launch {
-            DatabaseProvider.getDatabase(this@ShortsBlockerService).whitelistDao()
-                .getAllChannels()
-                .collect { channels ->
-                    whitelistedChannels = channels.map { it.channelName.trim().lowercase() }.toSet()
-                }
-        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -140,19 +123,13 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 if (isAddictiveMedia) {
-                    var isWhitelistedCreator = false
-                    if (whitelistedChannels.isNotEmpty()) {
-                        val rootNode = getTargetAppRootNode()
-                        if (rootNode != null) {
-                            isWhitelistedCreator = isContentWhitelisted(rootNode, whitelistedChannels)
-                            try {
-                                rootNode.recycle()
-                            } catch (e: Exception) { /* ignore */ }
-                        }
-                    }
-
-                    if (!isWhitelistedCreator) {
-                        lastBlockedPackage = packageName
+                    val strictMode = sharedPreferences?.getBoolean("strict_mode", false) ?: false
+                    lastBlockedPackage = packageName
+                    
+                    if (strictMode) {
+                        lastBackNavigationTime = System.currentTimeMillis()
+                        redirectToSafeFeed()
+                    } else {
                         showFrictionOverlay()
                     }
                 } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -166,60 +143,43 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
-    private fun isContentWhitelisted(node: AccessibilityNodeInfo?, whitelistedNames: Set<String>): Boolean {
-        if (node == null) return false
-        
-        val text = node.text?.toString()?.trim()?.lowercase()
-        val desc = node.contentDescription?.toString()?.trim()?.lowercase()
-        
-        if (text != null && whitelistedNames.any { text.contains(it) }) return true
-        if (desc != null && whitelistedNames.any { desc.contains(it) }) return true
-        
-        for (i in 0 until node.childCount) {
-            val child = try { node.getChild(i) } catch (e: Exception) { null }
-            if (child != null) {
-                val found = isContentWhitelisted(child, whitelistedNames)
-                try { child.recycle() } catch (e: Exception) {}
-                if (found) return true
-            }
-        }
-        return false
-    }
-
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
 
         try {
             val viewId = node.viewIdResourceName ?: ""
+            val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
+            val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
+            val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
-            // Filter YouTube Shorts player elements precisely (prevent normal feed/search scrolls from being blocked)
-            if (viewId.contains("com.google.android.youtube:id/shorts_player") ||
+            // Filter YouTube Shorts player elements precisely
+            if (blockYT && (viewId.contains("com.google.android.youtube:id/shorts_player") ||
                 viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
                 viewId.contains("com.google.android.youtube:id/reel_recycler") ||
                 viewId.contains("com.google.android.youtube:id/reel_container") ||
                 viewId.contains("com.google.android.youtube:id/shorts_container") ||
                 viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
                 viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
-                viewId.contains("com.google.android.youtube:id/panel_container")) {
+                viewId.contains("com.google.android.youtube:id/panel_container"))) {
                 return true
             }
 
             // Filter Instagram Reels elements precisely
-            if (viewId.contains("com.instagram.android:id/clips_video_container") ||
+            if (blockIG && (viewId.contains("com.instagram.android:id/clips_video_container") ||
                 viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
                 viewId.contains("com.instagram.android:id/clips_viewer_container") ||
                 viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
                 viewId.contains("com.instagram.android:id/clips_post_container") ||
                 viewId.contains("com.instagram.android:id/clips_layout") ||
-                viewId.contains("com.instagram.android:id/reels_clip_container")) {
+                viewId.contains("com.instagram.android:id/reels_clip_container"))) {
                 return true
             }
 
             // Filter Snapchat Spotlight elements precisely
-            if (viewId.contains("com.snapchat.android:id/spotlight") ||
+            if (blockSC && (viewId.contains("com.snapchat.android:id/spotlight") ||
                 viewId.contains("com.snapchat.android:id/ngs_spotlight") ||
                 viewId.contains("com.snapchat.android:id/discover_playback") ||
-                viewId.contains("com.snapchat.android:id/neon_spotlight")) {
+                viewId.contains("com.snapchat.android:id/neon_spotlight"))) {
                 return true
             }
 
@@ -480,7 +440,6 @@ class ShortsBlockerService : AccessibilityService() {
     
     override fun onDestroy() {
         super.onDestroy()
-        serviceJob.cancel()
         removeFrictionOverlay()
     }
 }
