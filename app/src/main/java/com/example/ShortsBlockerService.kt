@@ -95,10 +95,11 @@ class ShortsBlockerService : AccessibilityService() {
             }
 
             val eventType = event.eventType
-            // Trigger on any scroll, content change, or window state change to guarantee it fires
+            // Trigger on any scroll, content change, window state change, or click to guarantee it fires
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                 
                 var isAddictiveMedia = false
 
@@ -154,7 +155,7 @@ class ShortsBlockerService : AccessibilityService() {
     }
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
+        if (node == null || !node.isVisibleToUser) return false
 
         try {
             val viewId = node.viewIdResourceName ?: ""
@@ -162,35 +163,47 @@ class ShortsBlockerService : AccessibilityService() {
             val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
             val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
-            // Filter YouTube Shorts player elements precisely
-            if (blockYT && (viewId.contains("com.google.android.youtube:id/shorts_player") ||
-                viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
-                viewId.contains("com.google.android.youtube:id/reel_recycler") ||
-                viewId.contains("com.google.android.youtube:id/reel_container") ||
-                viewId.contains("com.google.android.youtube:id/shorts_container") ||
-                viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
-                viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
-                viewId.contains("com.google.android.youtube:id/panel_container"))) {
-                return true
-            }
+            // Ignore bottom navigation bar elements so we don't block normal feeds accidentally
+            val isNavElement = viewId.contains("tab") || viewId.contains("nav") || viewId.contains("bottom") || viewId.contains("bar") || viewId.contains("menu") || viewId.contains("icon")
 
-            // Filter Instagram Reels elements precisely
-            if (blockIG && (viewId.contains("com.instagram.android:id/clips_video_container") ||
-                viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
-                viewId.contains("com.instagram.android:id/clips_viewer_container") ||
-                viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
-                viewId.contains("com.instagram.android:id/clips_post_container") ||
-                viewId.contains("com.instagram.android:id/clips_layout") ||
-                viewId.contains("com.instagram.android:id/reels_clip_container"))) {
-                return true
-            }
+            if (!isNavElement) {
+                // Filter YouTube Shorts player elements precisely
+                if (blockYT && (viewId.contains("com.google.android.youtube:id/shorts_player") ||
+                    viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
+                    viewId.contains("com.google.android.youtube:id/reel_recycler") ||
+                    viewId.contains("com.google.android.youtube:id/reel_container") ||
+                    viewId.contains("com.google.android.youtube:id/shorts_container") ||
+                    viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
+                    viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
+                    viewId.contains("com.google.android.youtube:id/panel_container"))) {
+                    return true
+                }
 
-            // Filter Snapchat Spotlight elements precisely
-            if (blockSC && (viewId.contains("com.snapchat.android:id/spotlight") ||
-                viewId.contains("com.snapchat.android:id/ngs_spotlight") ||
-                viewId.contains("com.snapchat.android:id/discover_playback") ||
-                viewId.contains("com.snapchat.android:id/neon_spotlight"))) {
-                return true
+                // Filter Instagram Reels elements precisely
+                if (blockIG && (viewId.contains("com.instagram.android:id/clips_video_container") ||
+                    viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
+                    viewId.contains("com.instagram.android:id/clips_viewer_container") ||
+                    viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
+                    viewId.contains("com.instagram.android:id/clips_post_container") ||
+                    viewId.contains("com.instagram.android:id/clips_layout") ||
+                    viewId.contains("com.instagram.android:id/reels_clip_container") ||
+                    viewId.contains("com.instagram.android:id/clips_viewer_view_pager"))) {
+                    return true
+                }
+
+                // Filter Snapchat Spotlight elements precisely
+                if (blockSC && (
+                    viewId.endsWith(":id/spotlight_video_container") || 
+                    viewId.endsWith(":id/discover_playback") ||
+                    viewId.contains("spotlight_player") ||
+                    viewId.contains("spotlight_video") ||
+                    viewId.endsWith(":id/neon_spotlight_play_view") || 
+                    viewId.endsWith(":id/neon_spotlight_playback_view") ||
+                    viewId.endsWith(":id/spotlight_page_content") ||
+                    (viewId.contains("spotlight") && !viewId.contains("badge") && !viewId.contains("button"))
+                )) {
+                    return true
+                }
             }
 
             // Traverse hierarchy safely
