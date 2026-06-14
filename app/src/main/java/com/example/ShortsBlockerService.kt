@@ -18,6 +18,9 @@ import android.widget.Toast
 
 import android.view.accessibility.AccessibilityWindowInfo
 import android.view.accessibility.AccessibilityNodeInfo
+import android.media.AudioManager
+import android.media.AudioFocusRequest
+import android.os.Build
 
 class ShortsBlockerService : AccessibilityService() {
 
@@ -34,11 +37,51 @@ class ShortsBlockerService : AccessibilityService() {
     private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
     
     private var lastBlockedPackage = ""
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+
+    private fun requestAudioFocusToPauseMedia() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (audioFocusRequest == null) {
+                    audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                        .setOnAudioFocusChangeListener { }
+                        .build()
+                }
+                audioManager?.requestAudioFocus(audioFocusRequest!!)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.requestAudioFocus(
+                    { },
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun abandonAudioFocusToResumeMedia() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let {
+                    audioManager?.abandonAudioFocusRequest(it)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus { }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -302,6 +345,7 @@ class ShortsBlockerService : AccessibilityService() {
                 windowManager.addView(overlayView, layoutParams)
                 overlayView?.animate()?.alpha(1f)?.setDuration(250)?.start()
                 isOverlayShowing = true
+                requestAudioFocusToPauseMedia()
                 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -448,6 +492,7 @@ class ShortsBlockerService : AccessibilityService() {
             if (!isOverlayShowing || overlayView == null) return@post
             try {
                 windowManager.removeView(overlayView)
+                abandonAudioFocusToResumeMedia()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
