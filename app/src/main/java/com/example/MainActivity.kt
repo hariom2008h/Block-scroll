@@ -61,9 +61,9 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     }
     var showSystemAccessDialog by remember { mutableStateOf(false) }
     
-    var isStrictMode by remember {
-        mutableStateOf(sharedPrefs.getBoolean("strict_mode", false))
-    }
+    var strictModeYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_youtube", false)) }
+    var strictModeInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_instagram", false)) }
+    var strictModeSnapchat by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_snapchat", false)) }
     var blockYoutube by remember {
         mutableStateOf(sharedPrefs.getBoolean("block_youtube", true))
     }
@@ -108,118 +108,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             
-            // Section 1: Blocking Rules
-            Text(
-                text = "Blocking Rules",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                ) {
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Warning,
-                            contentDescription = null,
-                            tint = if (isStrictMode) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Strict Mode",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Instantly close Shorts/Reels. No password prompt.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = isStrictMode,
-                            onCheckedChange = {
-                                isStrictMode = it
-                                sharedPrefs.edit().putBoolean("strict_mode", it).apply()
-                            }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.List,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Target Apps",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("YouTube Shorts", modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = blockYoutube,
-                            onCheckedChange = {
-                                blockYoutube = it
-                                sharedPrefs.edit().putBoolean("block_youtube", it).apply()
-                            }
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Instagram Reels", modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = blockInstagram,
-                            onCheckedChange = {
-                                blockInstagram = it
-                                sharedPrefs.edit().putBoolean("block_instagram", it).apply()
-                            }
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Snapchat Spotlight", modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = blockSnapchat,
-                            onCheckedChange = {
-                                blockSnapchat = it
-                                sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
-                            }
-                        )
-                    }
-                }
-            }
-
             // Section 2: Security
             Text(
                 text = "Security",
@@ -313,9 +201,16 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
         if (showSystemAccessDialog) {
             AlertDialog(
                 onDismissRequest = { showSystemAccessDialog = false },
-                title = { Text("System Access") },
+                title = { Text("Settings") },
                 text = {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
                         val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                         val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
                         
@@ -338,7 +233,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                                 )
                                 Text(
                                     text = if (isOverlayGranted) "Active" else "Required",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -355,7 +250,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                             }
                         }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -389,6 +284,53 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                                 Text("Enable")
                             }
                         }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+                        Text("Target Apps Configuration", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        AppFilterItem(
+                            appName = "YouTube Shorts",
+                            isBlocked = blockYoutube,
+                            onBlockChange = { 
+                                blockYoutube = it 
+                                sharedPrefs.edit().putBoolean("block_youtube", it).apply()
+                            },
+                            isStrict = strictModeYoutube,
+                            onStrictChange = { 
+                                strictModeYoutube = it 
+                                sharedPrefs.edit().putBoolean("strict_mode_youtube", it).apply()
+                            }
+                        )
+
+                        AppFilterItem(
+                            appName = "Instagram Reels",
+                            isBlocked = blockInstagram,
+                            onBlockChange = { 
+                                blockInstagram = it 
+                                sharedPrefs.edit().putBoolean("block_instagram", it).apply()
+                            },
+                            isStrict = strictModeInstagram,
+                            onStrictChange = { 
+                                strictModeInstagram = it 
+                                sharedPrefs.edit().putBoolean("strict_mode_instagram", it).apply()
+                            }
+                        )
+
+                        AppFilterItem(
+                            appName = "Snapchat Spotlight",
+                            isBlocked = blockSnapchat,
+                            onBlockChange = { 
+                                blockSnapchat = it 
+                                sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
+                            },
+                            isStrict = strictModeSnapchat,
+                            onStrictChange = { 
+                                strictModeSnapchat = it 
+                                sharedPrefs.edit().putBoolean("strict_mode_snapchat", it).apply()
+                            }
+                        )
                     }
                 },
                 confirmButton = {
@@ -418,4 +360,22 @@ fun PasswordCriterion(text: String, met: Boolean) {
         )
     }
 }
+
+@Composable
+fun AppFilterItem(appName: String, isBlocked: Boolean, onBlockChange: (Boolean) -> Unit, isStrict: Boolean, onStrictChange: (Boolean) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(appName, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Switch(checked = isBlocked, onCheckedChange = onBlockChange)
+        }
+        if (isBlocked) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Strict Mode (No Password)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                Checkbox(checked = isStrict, onCheckedChange = onStrictChange)
+            }
+        }
+    }
+}
+
 

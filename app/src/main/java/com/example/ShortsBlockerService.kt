@@ -123,10 +123,20 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 if (isAddictiveMedia) {
-                    val strictMode = sharedPreferences?.getBoolean("strict_mode", false) ?: false
+                    val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
+                    val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
+                    val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
+                    
+                    val isStrictMode = when {
+                        packageName.contains("youtube") -> strictModeYT
+                        packageName.contains("instagram") -> strictModeIG
+                        packageName.contains("snapchat") -> strictModeSC
+                        else -> false
+                    }
+                    
                     lastBlockedPackage = packageName
                     
-                    if (strictMode) {
+                    if (isStrictMode) {
                         lastBackNavigationTime = System.currentTimeMillis()
                         redirectToSafeFeed()
                     } else {
