@@ -326,11 +326,7 @@ class ShortsBlockerService : AccessibilityService() {
                     override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
                         if (event?.keyCode == KeyEvent.KEYCODE_BACK) {
                             if (event.action == KeyEvent.ACTION_UP) {
-                                lastBackNavigationTime = System.currentTimeMillis()
-                                redirectToSafeFeed()
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    removeFrictionOverlay()
-                                }, 400)
+                                executeExitAndGoBack()
                             }
                             return true // Consume down and up events
                         }
@@ -371,15 +367,7 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 exitButton?.setOnClickListener {
-                    lastBackNavigationTime = System.currentTimeMillis()
-                    
-                    // Route the user out of the shorts feed forcefully
-                    redirectToSafeFeed()
-                    
-                    // Delay removing the overlay slightly so the user doesn't see the short while the app transitions
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        removeFrictionOverlay()
-                    }, 400)
+                    executeExitAndGoBack()
                 }
 
                 overlayView?.alpha = 0f
@@ -526,6 +514,32 @@ class ShortsBlockerService : AccessibilityService() {
         } catch (e: Exception) {
             // Hard fallback if everything fails
             performGlobalAction(GLOBAL_ACTION_HOME)
+        }
+    }
+
+    private fun executeExitAndGoBack() {
+        lastBackNavigationTime = System.currentTimeMillis()
+        
+        mainHandler.post {
+            if (!isOverlayShowing || overlayView == null) {
+                redirectToSafeFeed()
+                return@post
+            }
+            try {
+                windowManager.removeView(overlayView)
+                abandonAudioFocusToResumeMedia()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                overlayView = null
+                isOverlayShowing = false
+                
+                // Now that the overlay is definitely removed from the WindowManager, 
+                // the injected back action will reliably reach the underlying app instead of getting trapped by our overlay.
+                mainHandler.postDelayed({
+                    redirectToSafeFeed()
+                }, 200)
+            }
         }
     }
 
