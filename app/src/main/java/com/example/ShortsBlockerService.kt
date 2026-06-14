@@ -31,7 +31,6 @@ class ShortsBlockerService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     
     private var lastUnlockTime = 0L
-    private val UNLOCK_COOLDOWN_MS = 15000L // 15 seconds of friction-free time before next block
     
     private var lastBackNavigationTime = 0L
     private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
@@ -128,7 +127,10 @@ class ShortsBlockerService : AccessibilityService() {
 
             // If user recently entered the correct password, do not show lock overlay during cooldown period
             val currentTime = System.currentTimeMillis()
-            if (currentTime < lastUnlockTime + UNLOCK_COOLDOWN_MS) {
+            val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
+            val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
+            
+            if (currentTime < lastUnlockTime + sessionCooldownMs) {
                 return
             }
 
@@ -322,9 +324,18 @@ class ShortsBlockerService : AccessibilityService() {
                     val enteredPassword = passwordInput?.text.toString()
 
                     if (enteredPassword == correctPassword) {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            unlockButton?.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                        } else {
+                            unlockButton?.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        }
+
                         lastUnlockTime = System.currentTimeMillis()
                         removeFrictionOverlay()
                     } else {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            unlockButton?.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                        }
                         passwordInput?.error = "Incorrect Password"
                     }
                 }
@@ -346,6 +357,12 @@ class ShortsBlockerService : AccessibilityService() {
                 overlayView?.animate()?.alpha(1f)?.setDuration(250)?.start()
                 isOverlayShowing = true
                 requestAudioFocusToPauseMedia()
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    overlayView?.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                } else {
+                    overlayView?.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                }
                 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -444,45 +461,42 @@ class ShortsBlockerService : AccessibilityService() {
 
         try {
             if (isSnapchat) {
-                var clickedChat = false
-                try {
-                    val root = getTargetAppRootNode()
-                    if (root != null) {
-                        // First try to click Chat tab via UI node
-                        clickedChat = clickNodeByContentDescription(root, listOf("Chat", "Chats", "चैट"))
-                        try { root.recycle() } catch (e: Exception) {}
-                    }
-                } catch (e: Exception) {}
-
-                if (!clickedChat) {
+                // For Snapchat, the most reliable way to exit Spotlight is to just trigger the back button.
+                // Spotlight is usually opened as a layer over the Camera or from Discover.
+                val backSuccess = performGlobalAction(GLOBAL_ACTION_BACK)
+                if (!backSuccess) {
+                    var clickedChat = false
                     try {
-                        // Hard fallback: Restart app which goes to Camera/Home
-                        val launchIntent = packageManager.getLaunchIntentForPackage(targetPackage)?.apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        val root = getTargetAppRootNode()
+                        if (root != null) {
+                            clickedChat = clickNodeByContentDescription(root, listOf("Chat", "Chats", "चैट", "Camera", "SnapMap"))
+                            try { root.recycle() } catch (e: Exception) {}
                         }
-                        if (launchIntent != null) {
-                            startActivity(launchIntent)
-                        } else {
-                            performGlobalAction(GLOBAL_ACTION_HOME)
-                        }
-                    } catch (e: Exception) {
+                    } catch (e: Exception) {}
+    
+                    if (!clickedChat) {
                         performGlobalAction(GLOBAL_ACTION_HOME)
                     }
                 }
                 return
             }
 
-            // Force the app to open its main web feed. The deep link intent intercepts and forces YouTube 
-            // home activity, cleanly escaping the shorts backstack without relying on fragile GLOBAL_ACTION_BACK
-            val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
-                setPackage(targetPackage)
-                // CLEAR_TOP pops the shorts activity if Home exists below it. SINGLE_TOP resumes it.
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            // For YouTube and Instagram
+            // First try pressing the Back button which naturally closes the Shorts/Reels overlay 
+            // and returns to the previous feed the user was on
+            val backSuccess = performGlobalAction(GLOBAL_ACTION_BACK)
+            
+            // If the back button action failed for some reason, fallback to launching the main activity
+            if (!backSuccess) {
+                val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                    setPackage(targetPackage)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+                startActivity(intent)
             }
-            startActivity(intent)
         } catch (e: Exception) {
-            // Hard fallback if the intent fails for any reason
+            // Hard fallback if everything fails
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
     }

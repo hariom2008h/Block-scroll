@@ -78,6 +78,9 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
     var hideLauncherIcon by remember {
         mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
     }
+    var sessionDuration by remember {
+        mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
+    }
 
     Column(
         modifier = modifier
@@ -368,6 +371,32 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                                     )
                                     Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
                                 }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+                        Text("Session Cooldown", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Post-Unlock Grace Period", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                                Text("${sessionDuration.toInt()} min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                text = "How long until you are asked for standard password again.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Slider(
+                                value = sessionDuration,
+                                onValueChange = { sessionDuration = it },
+                                onValueChangeFinished = {
+                                    sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
+                                },
+                                valueRange = 1f..5f,
+                                steps = 3
                             )
                         }
                     }
