@@ -21,6 +21,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.media.AudioManager
 import android.media.AudioFocusRequest
 import android.os.Build
+import android.view.KeyEvent
 
 class ShortsBlockerService : AccessibilityService() {
 
@@ -63,6 +64,11 @@ class ShortsBlockerService : AccessibilityService() {
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
                 )
             }
+            
+            val downEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE)
+            audioManager?.dispatchMediaKeyEvent(downEvent)
+            val upEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE)
+            audioManager?.dispatchMediaKeyEvent(upEvent)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -78,6 +84,11 @@ class ShortsBlockerService : AccessibilityService() {
                 @Suppress("DEPRECATION")
                 audioManager?.abandonAudioFocus { }
             }
+            
+            val downEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY)
+            audioManager?.dispatchMediaKeyEvent(downEvent)
+            val upEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY)
+            audioManager?.dispatchMediaKeyEvent(upEvent)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -481,20 +492,27 @@ class ShortsBlockerService : AccessibilityService() {
                 return
             }
 
-            // For YouTube and Instagram
-            // First try pressing the Back button which naturally closes the Shorts/Reels overlay 
-            // and returns to the previous feed the user was on
-            val backSuccess = performGlobalAction(GLOBAL_ACTION_BACK)
-            
-            // If the back button action failed for some reason, fallback to launching the main activity
-            if (!backSuccess) {
-                val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
-                    setPackage(targetPackage)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            // For Instagram: Pressing the Back button naturally closes the Reels overlay 
+            // and returns to the previous feed the user was on.
+            if (isInsta) {
+                val backSuccess = performGlobalAction(GLOBAL_ACTION_BACK)
+                if (!backSuccess) {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.instagram.com/")).apply {
+                        setPackage(targetPackage)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    }
+                    startActivity(intent)
                 }
-                startActivity(intent)
+                return
             }
+
+            // For YouTube: Pressing back in the Shorts feed often just stays in the Shorts feed.
+            // Using a deep link intent cleanly forces YouTube to the Home tab and clears the Shorts backstack.
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/")).apply {
+                setPackage(targetPackage)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            startActivity(intent)
         } catch (e: Exception) {
             // Hard fallback if everything fails
             performGlobalAction(GLOBAL_ACTION_HOME)

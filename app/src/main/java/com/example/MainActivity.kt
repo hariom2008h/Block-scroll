@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
@@ -37,11 +38,23 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
+        var currentScreen by remember { mutableStateOf("home") }
+        
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
-          ShortsBlockerSettingsScreen(modifier = Modifier.padding(innerPadding))
+          if (currentScreen == "home") {
+            ShortsBlockerHomeScreen(
+                modifier = Modifier.padding(innerPadding),
+                onNavigateToSettings = { currentScreen = "settings" }
+            )
+          } else {
+            ShortsBlockerSettingsScreen(
+                modifier = Modifier.padding(innerPadding),
+                onNavigateBack = { currentScreen = "home" }
+            )
+          }
         }
       }
     }
@@ -50,36 +63,14 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
+fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings: () -> Unit) {
     val context = LocalContext.current
-    var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
 
     var password by remember { 
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
-    }
-    var showSystemAccessDialog by remember { mutableStateOf(false) }
-    
-    var strictModeYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_youtube", false)) }
-    var strictModeInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_instagram", false)) }
-    var strictModeSnapchat by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_snapchat", false)) }
-    var blockYoutube by remember {
-        mutableStateOf(sharedPrefs.getBoolean("block_youtube", true))
-    }
-    var blockInstagram by remember {
-        mutableStateOf(sharedPrefs.getBoolean("block_instagram", true))
-    }
-    var blockSnapchat by remember {
-        mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true))
-    }
-    var hideLauncherIcon by remember {
-        mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
-    }
-    var sessionDuration by remember {
-        mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
     }
 
     Column(
@@ -95,7 +86,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                 )
             },
             actions = {
-                IconButton(onClick = { showSystemAccessDialog = true }) {
+                IconButton(onClick = onNavigateToSettings) {
                     Icon(
                         imageVector = Icons.Rounded.Settings,
                         contentDescription = "System Access Settings",
@@ -205,208 +196,253 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
 
-        if (showSystemAccessDialog) {
-            AlertDialog(
-                onDismissRequest = { showSystemAccessDialog = false },
-                title = { Text("Settings") },
-                text = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                        val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = overlayIcon,
-                                contentDescription = null,
-                                tint = overlayColor,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Overlay Permission",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = if (isOverlayGranted) "Active" else "Required",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    context.startActivity(intent)
-                                },
-                            ) {
-                                Text(if (isOverlayGranted) "Manage" else "Grant")
-                            }
-                        }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Unit) {
+    val context = LocalContext.current
+    var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+    val sharedPrefs = remember {
+        context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+    }
+    
+    var strictModeYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_youtube", false)) }
+    var strictModeInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_instagram", false)) }
+    var strictModeSnapchat by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_snapchat", false)) }
+    var blockYoutube by remember {
+        mutableStateOf(sharedPrefs.getBoolean("block_youtube", true))
+    }
+    var blockInstagram by remember {
+        mutableStateOf(sharedPrefs.getBoolean("block_instagram", true))
+    }
+    var blockSnapchat by remember {
+        mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true))
+    }
+    var hideLauncherIcon by remember {
+        mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
+    }
+    var sessionDuration by remember {
+        mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
+    }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Settings,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Accessibility",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "To intercept scrolls",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            FilledTonalButton(
-                                onClick = {
-                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                    context.startActivity(intent)
-                                },
-                            ) {
-                                Text("Enable")
-                            }
-                        }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        CenterAlignedTopAppBar(
+            title = {
+                Text(
+                    text = "Settings",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            navigationIcon = {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.primary,
+            )
+        )
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-                        Text("Target Apps Configuration", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        AppFilterItem(
-                            appName = "YouTube Shorts",
-                            isBlocked = blockYoutube,
-                            onBlockChange = { 
-                                blockYoutube = it 
-                                sharedPrefs.edit().putBoolean("block_youtube", it).apply()
-                            },
-                            isStrict = strictModeYoutube,
-                            onStrictChange = { 
-                                strictModeYoutube = it 
-                                sharedPrefs.edit().putBoolean("strict_mode_youtube", it).apply()
-                            }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+        ) {
+            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = overlayIcon,
+                    contentDescription = null,
+                    tint = overlayColor,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Overlay Permission",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (isOverlayGranted) "Active" else "Required",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Button(
+                    onClick = {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
                         )
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Text(if (isOverlayGranted) "Manage" else "Grant")
+                }
+            }
 
-                        AppFilterItem(
-                            appName = "Instagram Reels",
-                            isBlocked = blockInstagram,
-                            onBlockChange = { 
-                                blockInstagram = it 
-                                sharedPrefs.edit().putBoolean("block_instagram", it).apply()
-                            },
-                            isStrict = strictModeInstagram,
-                            onStrictChange = { 
-                                strictModeInstagram = it 
-                                sharedPrefs.edit().putBoolean("strict_mode_instagram", it).apply()
-                            }
-                        )
+            Spacer(modifier = Modifier.height(12.dp))
 
-                        AppFilterItem(
-                            appName = "Snapchat Spotlight",
-                            isBlocked = blockSnapchat,
-                            onBlockChange = { 
-                                blockSnapchat = it 
-                                sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
-                            },
-                            isStrict = strictModeSnapchat,
-                            onStrictChange = { 
-                                strictModeSnapchat = it 
-                                sharedPrefs.edit().putBoolean("strict_mode_snapchat", it).apply()
-                            }
-                        )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Accessibility",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "To intercept scrolls",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FilledTonalButton(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Text("Enable")
+                }
+            }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
-                        Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(8.dp))
+            Text("Target Apps Configuration", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Hide App Icon", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    text = "Removes app from home screen. Access via Accessibility Settings in phone.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = hideLauncherIcon,
-                                onCheckedChange = { isHidden ->
-                                    hideLauncherIcon = isHidden
-                                    sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
-                                    
-                                    val componentName = ComponentName(context, "com.example.LauncherActivity")
-                                    context.packageManager.setComponentEnabledSetting(
-                                        componentName,
-                                        if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                                        PackageManager.DONT_KILL_APP
-                                    )
-                                    Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-                        Text("Session Cooldown", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Post-Unlock Grace Period", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                                Text("${sessionDuration.toInt()} min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            }
-                            Text(
-                                text = "How long until you are asked for standard password again.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Slider(
-                                value = sessionDuration,
-                                onValueChange = { sessionDuration = it },
-                                onValueChangeFinished = {
-                                    sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
-                                },
-                                valueRange = 1f..5f,
-                                steps = 3
-                            )
-                        }
-                    }
+            AppFilterItem(
+                appName = "YouTube Shorts",
+                isBlocked = blockYoutube,
+                onBlockChange = { 
+                    blockYoutube = it 
+                    sharedPrefs.edit().putBoolean("block_youtube", it).apply()
                 },
-                confirmButton = {
-                    TextButton(onClick = { showSystemAccessDialog = false }) {
-                        Text("Close")
-                    }
+                isStrict = strictModeYoutube,
+                onStrictChange = { 
+                    strictModeYoutube = it 
+                    sharedPrefs.edit().putBoolean("strict_mode_youtube", it).apply()
                 }
             )
+
+            AppFilterItem(
+                appName = "Instagram Reels",
+                isBlocked = blockInstagram,
+                onBlockChange = { 
+                    blockInstagram = it 
+                    sharedPrefs.edit().putBoolean("block_instagram", it).apply()
+                },
+                isStrict = strictModeInstagram,
+                onStrictChange = { 
+                    strictModeInstagram = it 
+                    sharedPrefs.edit().putBoolean("strict_mode_instagram", it).apply()
+                }
+            )
+
+            AppFilterItem(
+                appName = "Snapchat Spotlight",
+                isBlocked = blockSnapchat,
+                onBlockChange = { 
+                    blockSnapchat = it 
+                    sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
+                },
+                isStrict = strictModeSnapchat,
+                onStrictChange = { 
+                    strictModeSnapchat = it 
+                    sharedPrefs.edit().putBoolean("strict_mode_snapchat", it).apply()
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+            Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Hide App Icon", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = "Removes app from home screen. Access via Accessibility Settings in phone.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = hideLauncherIcon,
+                    onCheckedChange = { isHidden ->
+                        hideLauncherIcon = isHidden
+                        sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
+                        
+                        val componentName = ComponentName(context, "com.example.LauncherActivity")
+                        context.packageManager.setComponentEnabledSetting(
+                            componentName,
+                            if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                            PackageManager.DONT_KILL_APP
+                        )
+                        Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+            Text("Session Cooldown", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Post-Unlock Grace Period", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Text("${sessionDuration.toInt()} min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    text = "How long until you are asked for standard password again.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Slider(
+                    value = sessionDuration,
+                    onValueChange = { sessionDuration = it },
+                    onValueChangeFinished = {
+                        sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
+                    },
+                    valueRange = 1f..5f,
+                    steps = 3
+                )
+            }
         }
     }
 }
