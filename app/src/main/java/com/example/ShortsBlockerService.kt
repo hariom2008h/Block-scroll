@@ -319,11 +319,30 @@ class ShortsBlockerService : AccessibilityService() {
 
             try {
                 val inflater = LayoutInflater.from(this)
-                overlayView = inflater.inflate(R.layout.overlay_password, null)
+                val innerView = inflater.inflate(R.layout.overlay_password, null)
+                
+                // Wrap in a custom container to reliably intercept the physical back button
+                val container = object : android.widget.FrameLayout(this) {
+                    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+                        if (event?.keyCode == KeyEvent.KEYCODE_BACK) {
+                            if (event.action == KeyEvent.ACTION_UP) {
+                                lastBackNavigationTime = System.currentTimeMillis()
+                                redirectToSafeFeed()
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    removeFrictionOverlay()
+                                }, 400)
+                            }
+                            return true // Consume down and up events
+                        }
+                        return super.dispatchKeyEvent(event)
+                    }
+                }
+                container.addView(innerView)
+                overlayView = container
 
-                val passwordInput = overlayView?.findViewById<EditText>(R.id.password_input)
-                val unlockButton = overlayView?.findViewById<Button>(R.id.unlock_button)
-                val exitButton = overlayView?.findViewById<Button>(R.id.exit_button)
+                val passwordInput = innerView.findViewById<EditText>(R.id.password_input)
+                val unlockButton = innerView.findViewById<Button>(R.id.unlock_button)
+                val exitButton = innerView.findViewById<Button>(R.id.exit_button)
 
                 unlockButton?.setOnClickListener {
                     val correctPassword = try {
@@ -492,27 +511,18 @@ class ShortsBlockerService : AccessibilityService() {
                 return
             }
 
-            // For Instagram: Pressing the Back button naturally closes the Reels overlay 
-            // and returns to the previous feed the user was on.
-            if (isInsta) {
-                val backSuccess = performGlobalAction(GLOBAL_ACTION_BACK)
-                if (!backSuccess) {
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.instagram.com/")).apply {
-                        setPackage(targetPackage)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    }
-                    startActivity(intent)
+            // For YouTube and Instagram: Pressing the Back button naturally closes the Shorts/Reels overlay 
+            // and returns to the previous screen the user was on.
+            val backSuccess = performGlobalAction(GLOBAL_ACTION_BACK)
+            if (!backSuccess) {
+                // If it fails, fallback
+                val url = if (isInsta) "https://www.instagram.com/" else "https://www.youtube.com/"
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                    setPackage(targetPackage)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 }
-                return
+                startActivity(intent)
             }
-
-            // For YouTube: Pressing back in the Shorts feed often just stays in the Shorts feed.
-            // Using a deep link intent cleanly forces YouTube to the Home tab and clears the Shorts backstack.
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/")).apply {
-                setPackage(targetPackage)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            startActivity(intent)
         } catch (e: Exception) {
             // Hard fallback if everything fails
             performGlobalAction(GLOBAL_ACTION_HOME)
