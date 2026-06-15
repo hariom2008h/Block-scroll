@@ -89,6 +89,10 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
     }
 
+    var hideLauncherIcon by remember {
+        mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -253,6 +257,52 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                     )
                 }
             }
+
+            // Section: Stealth Mode
+            Text(
+                text = "Stealth Mode",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Hide App Icon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Removes app from home screen. Access via System Settings -> Accessibility.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = hideLauncherIcon,
+                        onCheckedChange = { isHidden ->
+                            hideLauncherIcon = isHidden
+                            sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
+                            
+                            val componentName = ComponentName(context, "com.example.LauncherActivity")
+                            context.packageManager.setComponentEnabledSetting(
+                                componentName,
+                                if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                PackageManager.DONT_KILL_APP
+                            )
+                            Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -277,9 +327,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     }
     var blockSnapchat by remember {
         mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true))
-    }
-    var hideLauncherIcon by remember {
-        mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
     }
 
     Column(
