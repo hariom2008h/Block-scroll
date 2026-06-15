@@ -209,6 +209,15 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
     
+    var gitHubOwner by remember { mutableStateOf(sharedPrefs.getString("github_owner", "hariom2008h") ?: "hariom2008h") }
+    var gitHubRepo by remember { mutableStateOf(sharedPrefs.getString("github_repo", "Block-scroll") ?: "Block-scroll") }
+    
+    var updateCheckStatus by remember { mutableStateOf<String?>(null) }
+    var updateChecking by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf<UpdateResult.NewVersionAvailable?>(null) }
+    var downloadProgress by remember { mutableStateOf<Int?>(null) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+
     var strictModeYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_youtube", false)) }
     var strictModeInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_instagram", false)) }
     var strictModeSnapchat by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_snapchat", false)) }
@@ -443,7 +452,238 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                     steps = 3
                 )
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+            Text("App Updates (GitHub)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Text(
+                    text = "Configure your GitHub repository to check for releases. Perfect for self-hosting updates on GitHub.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = gitHubOwner,
+                        onValueChange = {
+                            gitHubOwner = it
+                            sharedPrefs.edit().putString("github_owner", it).apply()
+                        },
+                        label = { Text("GitHub Owner") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = gitHubRepo,
+                        onValueChange = {
+                            gitHubRepo = it
+                            sharedPrefs.edit().putString("github_repo", it).apply()
+                        },
+                        label = { Text("Repository") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val currentAppVersion = remember { UpdateChecker.getCurrentVersion(context) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Current Version: v$currentAppVersion",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            updateChecking = true
+                            updateCheckStatus = "Checking GitHub..."
+                            UpdateChecker.checkForUpdate(
+                                context = context,
+                                owner = gitHubOwner,
+                                repo = gitHubRepo
+                            ) { result ->
+                                updateChecking = false
+                                when (result) {
+                                    is UpdateResult.NewVersionAvailable -> {
+                                        updateCheckStatus = "New update available: v${result.latestVersion}"
+                                        showUpdateDialog = result
+                                    }
+                                    is UpdateResult.UpToDate -> {
+                                        updateCheckStatus = "Shorts Blocker is up to date!"
+                                    }
+                                    is UpdateResult.Error -> {
+                                        updateCheckStatus = result.message
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !updateChecking,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (updateChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Checking...")
+                        } else {
+                            Text("Check for Update")
+                        }
+                    }
+                }
+
+                updateCheckStatus?.let { status ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (status.contains("Error", true) || status.contains("failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // If currently downloading
+                downloadProgress?.let { progress ->
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Downloading update...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "$progress%",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { progress / 100f },
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+                }
+
+                downloadError?.let { err ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = err,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
+    }
+
+    showUpdateDialog?.let { updateInfo ->
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = null },
+            title = {
+                Text(
+                    text = "Update Available (v${updateInfo.latestVersion})",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = "A new version of Shorts Blocker is ready. Would you like to download and install it?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Current: v${updateInfo.currentVersion} → Latest: v${updateInfo.latestVersion}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Release Notes:",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = updateInfo.releaseNotes,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUpdateDialog = null
+                        downloadError = null
+                        downloadProgress = 0
+                        UpdateChecker.downloadAndInstallApk(
+                            context = context,
+                            downloadUrl = updateInfo.downloadUrl,
+                            onProgress = { progress ->
+                                downloadProgress = progress
+                            },
+                            onError = { err ->
+                                downloadProgress = null
+                                downloadError = err
+                            }
+                        )
+                    }
+                ) {
+                    Text("Download & Install")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = null }) {
+                    Text("Remind Me Later")
+                }
+            }
+        )
     }
 }
 
