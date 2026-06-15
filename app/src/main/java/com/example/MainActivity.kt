@@ -74,6 +74,10 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
     var password by remember { 
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
     }
+    
+    var sessionDuration by remember {
+        mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
+    }
 
     Column(
         modifier = modifier
@@ -197,6 +201,48 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                     }
                 }
             }
+
+            // Section: Session Cooldown
+            Text(
+                text = "Session Cooldown",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Post-Unlock Grace Period", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        Text("${sessionDuration.toInt()} min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        text = "How long until you are asked for standard password again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Slider(
+                        value = sessionDuration,
+                        onValueChange = { sessionDuration = it },
+                        onValueChangeFinished = {
+                            sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
+                        },
+                        valueRange = 1f..5f,
+                        steps = 3
+                    )
+                }
+            }
         }
     }
 }
@@ -234,9 +280,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     }
     var hideLauncherIcon by remember {
         mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
-    }
-    var sessionDuration by remember {
-        mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
     }
 
     Column(
@@ -426,32 +469,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                         )
                         Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
                     }
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("Session Cooldown", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Post-Unlock Grace Period", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text("${sessionDuration.toInt()} min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-                Text(
-                    text = "How long until you are asked for standard password again.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Slider(
-                    value = sessionDuration,
-                    onValueChange = { sessionDuration = it },
-                    onValueChangeFinished = {
-                        sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
-                    },
-                    valueRange = 1f..5f,
-                    steps = 3
                 )
             }
 
@@ -696,6 +713,27 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                         }
                     }
                 }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+            Text("About", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Text(
+                    text = "Shorts Blocker helps you reclaim your time and focus by preventing doomscrolling on addictive social media platforms.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
+                Text(
+                    text = "Version: v$currentVersion",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
