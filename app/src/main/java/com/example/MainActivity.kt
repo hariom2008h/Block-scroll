@@ -46,16 +46,26 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
-          if (currentScreen == "home") {
-            ShortsBlockerHomeScreen(
-                modifier = Modifier.padding(innerPadding),
-                onNavigateToSettings = { currentScreen = "settings" }
-            )
-          } else {
-            ShortsBlockerSettingsScreen(
-                modifier = Modifier.padding(innerPadding),
-                onNavigateBack = { currentScreen = "home" }
-            )
+          when (currentScreen) {
+            "home" -> {
+              ShortsBlockerHomeScreen(
+                  modifier = Modifier.padding(innerPadding),
+                  onNavigateToSettings = { currentScreen = "settings" }
+              )
+            }
+            "settings" -> {
+              ShortsBlockerSettingsScreen(
+                  modifier = Modifier.padding(innerPadding),
+                  onNavigateBack = { currentScreen = "home" },
+                  onNavigateToSystemSettings = { currentScreen = "system_settings" }
+              )
+            }
+            "system_settings" -> {
+              ShortsBlockerSystemSettingsScreen(
+                  modifier = Modifier.padding(innerPadding),
+                  onNavigateBack = { currentScreen = "settings" }
+              )
+            }
           }
         }
       }
@@ -249,22 +259,12 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Unit) {
+fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Unit, onNavigateToSystemSettings: () -> Unit) {
     val context = LocalContext.current
-    var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
 
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
-    
-    val gitHubOwner = "hariom2008h"
-    val gitHubRepo = "Block-scroll"
-    
-    var updateCheckStatus by remember { mutableStateOf<String?>(null) }
-    var updateChecking by remember { mutableStateOf(false) }
-    var showUpdateDialog by remember { mutableStateOf<UpdateResult.NewVersionAvailable?>(null) }
-    var downloadProgress by remember { mutableStateOf<Int?>(null) }
-    var downloadError by remember { mutableStateOf<String?>(null) }
 
     var strictModeYoutube by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_youtube", false)) }
     var strictModeInstagram by remember { mutableStateOf(sharedPrefs.getBoolean("strict_mode_instagram", false)) }
@@ -314,84 +314,37 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp)
         ) {
-            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            ElevatedCard(
+                onClick = onNavigateToSystemSettings,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             ) {
-                Icon(
-                    imageVector = overlayIcon,
-                    contentDescription = null,
-                    tint = overlayColor,
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Overlay Permission",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
                     )
-                    Text(
-                        text = if (isOverlayGranted) "Active" else "Required",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Button(
-                    onClick = {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "System Settings",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
-                        context.startActivity(intent)
-                    },
-                ) {
-                    Text(if (isOverlayGranted) "Manage" else "Grant")
+                        Text(
+                            text = "Overlay, Accessibility, Updates & About",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Settings,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Accessibility",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "To intercept scrolls",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                FilledTonalButton(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        context.startActivity(intent)
-                    },
-                ) {
-                    Text("Enable")
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
             Text("Target Apps Configuration", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
@@ -438,386 +391,12 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                 }
             )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
-            Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Hide App Icon", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        text = "Removes app from home screen. Access via Accessibility Settings in phone.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = hideLauncherIcon,
-                    onCheckedChange = { isHidden ->
-                        hideLauncherIcon = isHidden
-                        sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
-                        
-                        val componentName = ComponentName(context, "com.example.LauncherActivity")
-                        context.packageManager.setComponentEnabledSetting(
-                            componentName,
-                            if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                            PackageManager.DONT_KILL_APP
-                        )
-                        Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    // Card Header with CloudDownload Icon and App Version Badge
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Refresh,
-                                        contentDescription = "App Updates",
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                            Column {
-                                Text(
-                                    text = "App Updates",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "GitHub-based updater",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        
-                        // Premium Version Badge
-                        val currentAppVersion = remember { UpdateChecker.getCurrentVersion(context) }
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) {
-                            Text(
-                                text = "v$currentAppVersion",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Check for official application updates and view recent release logs directly from GitHub.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Buttons and States
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Status indicator
-                        Box(
-                            modifier = Modifier.weight(1f).padding(end = 12.dp)
-                        ) {
-                            updateCheckStatus?.let { status ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    val (icon, color) = when {
-                                        status.contains("Error", true) || status.contains("failed", true) -> {
-                                            Icons.Rounded.Warning to MaterialTheme.colorScheme.error
-                                        }
-                                        status.contains("up to date", true) || status.contains("App is up to date", true) -> {
-                                            Icons.Rounded.CheckCircle to MaterialTheme.colorScheme.primary
-                                        }
-                                        else -> {
-                                            Icons.Rounded.Info to MaterialTheme.colorScheme.secondary
-                                        }
-                                    }
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = color,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = status,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = color,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 2
-                                    )
-                                }
-                            }
-                        }
-
-                        Button(
-                            onClick = {
-                                updateChecking = true
-                                updateCheckStatus = "Checking GitHub..."
-                                UpdateChecker.checkForUpdate(
-                                    context = context,
-                                    owner = gitHubOwner,
-                                    repo = gitHubRepo
-                                ) { result ->
-                                    updateChecking = false
-                                    when (result) {
-                                        is UpdateResult.NewVersionAvailable -> {
-                                            updateCheckStatus = "Update available: v${result.latestVersion}"
-                                            showUpdateDialog = result
-                                        }
-                                        is UpdateResult.UpToDate -> {
-                                            updateCheckStatus = "App is up to date!"
-                                        }
-                                        is UpdateResult.Error -> {
-                                            updateCheckStatus = result.message
-                                        }
-                                    }
-                                }
-                            },
-                            enabled = !updateChecking,
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
-                        ) {
-                            if (updateChecking) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Checking...")
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Check Update")
-                            }
-                        }
-                    }
-
-                    // Download progress section inside the card
-                    downloadProgress?.let { progress ->
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Downloading installation package...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "$progress%",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LinearProgressIndicator(
-                                progress = { progress / 100f },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-
-                    downloadError?.let { err ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Warning,
-                                    contentDescription = "Error",
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = err,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("About", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text(
-                    text = "Shorts Blocker helps you reclaim your time and focus by preventing doomscrolling on addictive social media platforms.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
-                Text(
-                    text = "Version: v$currentVersion",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
     }
 
-    showUpdateDialog?.let { updateInfo ->
-        AlertDialog(
-            onDismissRequest = { showUpdateDialog = null },
-            title = {
-                Text(
-                    text = "Update Available (v${updateInfo.latestVersion})",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = "A new version of Shorts Blocker is ready. Would you like to download and install it?",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Current: v${updateInfo.currentVersion} → Latest: v${updateInfo.latestVersion}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Release Notes:",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = updateInfo.releaseNotes,
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showUpdateDialog = null
-                        downloadError = null
-                        downloadProgress = 0
-                        UpdateChecker.downloadAndInstallApk(
-                            context = context,
-                            downloadUrl = updateInfo.downloadUrl,
-                            onProgress = { progress ->
-                                downloadProgress = progress
-                            },
-                            onError = { err ->
-                                downloadProgress = null
-                                downloadError = err
-                            }
-                        )
-                    }
-                ) {
-                    Text("Download & Install")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUpdateDialog = null }) {
-                    Text("Remind Me Later")
-                }
-            }
-        )
-    }
+
 }
 
 @Composable
