@@ -23,6 +23,8 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.List
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -209,8 +211,8 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
     
-    var gitHubOwner by remember { mutableStateOf(sharedPrefs.getString("github_owner", "hariom2008h") ?: "hariom2008h") }
-    var gitHubRepo by remember { mutableStateOf(sharedPrefs.getString("github_repo", "Block-scroll") ?: "Block-scroll") }
+    val gitHubOwner = "hariom2008h"
+    val gitHubRepo = "Block-scroll"
     
     var updateCheckStatus by remember { mutableStateOf<String?>(null) }
     var updateChecking by remember { mutableStateOf(false) }
@@ -455,151 +457,244 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
-            Text("App Updates (GitHub)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text(
-                    text = "Configure your GitHub repository to check for releases. Perfect for self-hosting updates on GitHub.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
-                    OutlinedTextField(
-                        value = gitHubOwner,
-                        onValueChange = {
-                            gitHubOwner = it
-                            sharedPrefs.edit().putString("github_owner", it).apply()
-                        },
-                        label = { Text("GitHub Owner") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = gitHubRepo,
-                        onValueChange = {
-                            gitHubRepo = it
-                            sharedPrefs.edit().putString("github_repo", it).apply()
-                        },
-                        label = { Text("Repository") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val currentAppVersion = remember { UpdateChecker.getCurrentVersion(context) }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Current Version: v$currentAppVersion",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            updateChecking = true
-                            updateCheckStatus = "Checking GitHub..."
-                            UpdateChecker.checkForUpdate(
-                                context = context,
-                                owner = gitHubOwner,
-                                repo = gitHubRepo
-                            ) { result ->
-                                updateChecking = false
-                                when (result) {
-                                    is UpdateResult.NewVersionAvailable -> {
-                                        updateCheckStatus = "New update available: v${result.latestVersion}"
-                                        showUpdateDialog = result
-                                    }
-                                    is UpdateResult.UpToDate -> {
-                                        updateCheckStatus = "Shorts Blocker is up to date!"
-                                    }
-                                    is UpdateResult.Error -> {
-                                        updateCheckStatus = result.message
-                                    }
+                    // Card Header with CloudDownload Icon and App Version Badge
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = "App Updates",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(24.dp)
+                                    )
                                 }
                             }
-                        },
-                        enabled = !updateChecking,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        if (updateChecking) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Checking...")
-                        } else {
-                            Text("Check for Update")
+                            Column {
+                                Text(
+                                    text = "App Updates",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "GitHub-based updater",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
-                }
-
-                updateCheckStatus?.let { status ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (status.contains("Error", true) || status.contains("failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                // If currently downloading
-                downloadProgress?.let { progress ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        
+                        // Premium Version Badge
+                        val currentAppVersion = remember { UpdateChecker.getCurrentVersion(context) }
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(start = 8.dp)
                         ) {
                             Text(
-                                text = "Downloading update...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "$progress%",
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = "v$currentAppVersion",
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        LinearProgressIndicator(
-                            progress = { progress / 100f },
-                            modifier = Modifier.fillMaxWidth().height(8.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
                     }
-                }
 
-                downloadError?.let { err ->
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
-                        text = err,
+                        text = "Check for official application updates and view recent release logs directly from GitHub.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Buttons and States
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Status indicator
+                        Box(
+                            modifier = Modifier.weight(1f).padding(end = 12.dp)
+                        ) {
+                            updateCheckStatus?.let { status ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val (icon, color) = when {
+                                        status.contains("Error", true) || status.contains("failed", true) -> {
+                                            Icons.Rounded.Warning to MaterialTheme.colorScheme.error
+                                        }
+                                        status.contains("up to date", true) || status.contains("App is up to date", true) -> {
+                                            Icons.Rounded.CheckCircle to MaterialTheme.colorScheme.primary
+                                        }
+                                        else -> {
+                                            Icons.Rounded.Info to MaterialTheme.colorScheme.secondary
+                                        }
+                                    }
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = color,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = status,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = color,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                updateChecking = true
+                                updateCheckStatus = "Checking GitHub..."
+                                UpdateChecker.checkForUpdate(
+                                    context = context,
+                                    owner = gitHubOwner,
+                                    repo = gitHubRepo
+                                ) { result ->
+                                    updateChecking = false
+                                    when (result) {
+                                        is UpdateResult.NewVersionAvailable -> {
+                                            updateCheckStatus = "Update available: v${result.latestVersion}"
+                                            showUpdateDialog = result
+                                        }
+                                        is UpdateResult.UpToDate -> {
+                                            updateCheckStatus = "App is up to date!"
+                                        }
+                                        is UpdateResult.Error -> {
+                                            updateCheckStatus = result.message
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !updateChecking,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            if (updateChecking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Checking...")
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Check Update")
+                            }
+                        }
+                    }
+
+                    // Download progress section inside the card
+                    downloadProgress?.let { progress ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Downloading installation package...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "$progress%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { progress / 100f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+
+                    downloadError?.let { err ->
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = "Error",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
