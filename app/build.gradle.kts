@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -29,7 +31,16 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
+      val keystore = file("${rootDir}/debug.keystore")
+      val envBase64 = System.getenv("DEBUG_KEYSTORE_BASE64")
+      if (!keystore.exists() && !envBase64.isNullOrBlank()) {
+          try {
+              keystore.writeBytes(Base64.getMimeDecoder().decode(envBase64.replace("\\s".toRegex(), "")))
+          } catch (e: Exception) {
+              println("Failed to decode keystore: " + e.message)
+          }
+      }
+      storeFile = keystore
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
