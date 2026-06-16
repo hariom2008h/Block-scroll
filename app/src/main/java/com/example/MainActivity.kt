@@ -419,7 +419,39 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                 }
             )
 
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
+            Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Hide App Icon", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = "Removes app from home screen. Access via Accessibility Settings in phone.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = hideLauncherIcon,
+                    onCheckedChange = { isHidden ->
+                        hideLauncherIcon = isHidden
+                        sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
+                        
+                        val componentName = ComponentName(context, "com.example.LauncherActivity")
+                        context.packageManager.setComponentEnabledSetting(
+                            componentName,
+                            if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                            PackageManager.DONT_KILL_APP
+                        )
+                        Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
 
         }
     }
