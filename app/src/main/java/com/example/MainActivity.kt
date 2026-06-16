@@ -32,16 +32,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    installSplashScreen()
     super.onCreate(savedInstanceState)
+    
+    val sharedPrefs = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+    val crashLog = sharedPrefs.getString("crash_log", null)
+    
+    Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+        val sw = java.io.StringWriter()
+        exception.printStackTrace(java.io.PrintWriter(sw))
+        sharedPrefs.edit().putString("crash_log", sw.toString()).commit()
+        kotlin.system.exitProcess(1)
+    }
+
     enableEdgeToEdge()
     setContent {
-      val sharedPrefs = remember {
-          getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+      if (crashLog != null) {
+          Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+              Column {
+                  Text("CRASH DETECTED", color = Color.Red, fontWeight = FontWeight.Bold)
+                  Text(crashLog, style = MaterialTheme.typography.bodySmall, modifier = Modifier.verticalScroll(rememberScrollState()))
+                  Button(onClick = { sharedPrefs.edit().remove("crash_log").apply(); recreate() }) {
+                      Text("Clear and Restart")
+                  }
+              }
+          }
+          return@setContent
       }
+      
       var themeMode by remember { mutableIntStateOf(sharedPrefs.getInt("theme_mode", 0)) } // 0: Auto, 1: Light, 2: Dark
       var useDynamicColor by remember { mutableStateOf(sharedPrefs.getBoolean("dynamic_color", true)) }
 
@@ -58,13 +82,23 @@ class MainActivity : ComponentActivity() {
       }
 
       MyApplicationTheme(darkTheme = isDark, dynamicColor = useDynamicColor) {
-        var currentScreen by remember { mutableStateOf("home") }
+        val isFirstLaunch = sharedPrefs.getBoolean("is_first_launch", true)
+        var currentScreen by remember { mutableStateOf(if (isFirstLaunch) "onboarding" else "home") }
         
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
           when (currentScreen) {
+            "onboarding" -> {
+              ShortsBlockerOnboardingScreen(
+                  modifier = Modifier.padding(innerPadding),
+                  onFinishOnboarding = {
+                      sharedPrefs.edit().putBoolean("is_first_launch", false).apply()
+                      currentScreen = "home"
+                  }
+              )
+            }
             "home" -> {
               ShortsBlockerHomeScreen(
                   modifier = Modifier.padding(innerPadding),
