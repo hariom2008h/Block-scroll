@@ -39,7 +39,25 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
-      MyApplicationTheme {
+      val sharedPrefs = remember {
+          getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+      }
+      var themeMode by remember { mutableIntStateOf(sharedPrefs.getInt("theme_mode", 0)) } // 0: Auto, 1: Light, 2: Dark
+      var useDynamicColor by remember { mutableStateOf(sharedPrefs.getBoolean("dynamic_color", true)) }
+
+      // We can update these by listening to changes in the sub-screens if we pass callbacks, or simply listen to sharedPrefs
+      // Prefer passing callbacks or a Viewmodel but for simplicity we'll pass an update function down or use a wrapper
+      // Actually we can pass nothing if they update sharedPrefs and we don't react immediately, but it's better to react.
+      // So we will pass callbacks if needed, or better, keep the state here and pass it via Provide.
+      // Easiest is to pass standard callbacks to the system settings screen.
+      
+      val isDark = when (themeMode) {
+          1 -> false
+          2 -> true
+          else -> androidx.compose.foundation.isSystemInDarkTheme()
+      }
+
+      MyApplicationTheme(darkTheme = isDark, dynamicColor = useDynamicColor) {
         var currentScreen by remember { mutableStateOf("home") }
         
         Scaffold(
@@ -63,6 +81,16 @@ class MainActivity : ComponentActivity() {
             "system_settings" -> {
               ShortsBlockerSystemSettingsScreen(
                   modifier = Modifier.padding(innerPadding),
+                  themeMode = themeMode,
+                  onThemeModeChange = { 
+                      themeMode = it
+                      sharedPrefs.edit().putInt("theme_mode", it).apply()
+                  },
+                  useDynamicColor = useDynamicColor,
+                  onDynamicColorChange = {
+                      useDynamicColor = it
+                      sharedPrefs.edit().putBoolean("dynamic_color", it).apply()
+                  },
                   onNavigateBack = { currentScreen = "settings" }
               )
             }
