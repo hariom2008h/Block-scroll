@@ -22,6 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,9 +35,26 @@ fun ShortsBlockerOnboardingScreen(
     modifier: Modifier = Modifier,
     onFinishOnboarding: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    val pagerState = rememberPagerState(pageCount = { 5 })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isOverlayGranted = Settings.canDrawOverlays(context)
+                isAccessibilityGranted = isAccessibilityPermissionGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -61,16 +81,23 @@ fun ShortsBlockerOnboardingScreen(
                     isAnimated = false
                 )
                 2 -> OnboardingPage(
-                    title = "Why Accessibility?",
-                    description = "To 'see' when you scroll into a short video, we need Accessibility Permission. We do NOT read your messages, passwords, or personal data. Everything happens locally.",
-                    icon = Icons.Rounded.VisibilityOff,
+                    title = "Overlay Permission",
+                    description = "We need 'Display over other apps' to show the block screen over the addictive app.",
+                    icon = Icons.Rounded.Layers,
                     isAnimated = true,
                     animationType = "pulse"
                 )
                 3 -> OnboardingPage(
-                    title = "How to Enable",
-                    description = "1. Click 'Grant Permission'\n2. Find 'Shorts Blocker' in the list\n3. Turn the switch ON",
-                    icon = Icons.Rounded.SettingsAccessibility,
+                    title = "Accessibility Permission",
+                    description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
+                    icon = Icons.Rounded.VisibilityOff,
+                    isAnimated = true,
+                    animationType = "pulse"
+                )
+                4 -> OnboardingPage(
+                    title = "You're All Set",
+                    description = "Permissions are set. Let's reclaim your time.",
+                    icon = Icons.Rounded.CheckCircle,
                     isAnimated = false
                 )
             }
@@ -104,62 +131,85 @@ fun ShortsBlockerOnboardingScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
-            if (pagerState.currentPage < 3) {
-                TextButton(
-                    onClick = onFinishOnboarding,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Text("Skip")
-                }
-                
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                ) {
-                    Text("Next")
-                }
-            } else {
-                val isAccessibilityGranted = remember(LocalContext.current) {
-                    isAccessibilityPermissionGranted(context)
-                }
+            TextButton(
+                onClick = onFinishOnboarding,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Text("Skip")
+            }
 
-                if (!isAccessibilityGranted) {
-                    Button(
-                        onClick = {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.align(Alignment.Center)
-                    ) {
-                        Text("Grant Permission")
+            when (pagerState.currentPage) {
+                2 -> {
+                    if (!isOverlayGranted) {
+                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }) {
+                                Text("Next")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse("package:${context.packageName}")
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Grant Overlay")
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
+                        }
                     }
-                } else {
+                }
+                3 -> {
+                    if (!isAccessibilityGranted) {
+                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } }) {
+                                Text("Next")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Grant Accessibility")
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
+                        }
+                    }
+                }
+                4 -> {
                     Button(
                         onClick = onFinishOnboarding,
-                        modifier = Modifier.align(Alignment.Center)
+                        modifier = Modifier.align(Alignment.CenterEnd)
                     ) {
                         Text("Finish & Start")
                     }
                 }
-                
-                // Keep checking permission when we return from settings screen
-                LaunchedEffect(Unit) {
-                    // This relies on composition, it won't retrigger when returning from settings perfectly unless we use a LifecycleObserver,
-                    // but since they just press back it might recompose. To be safe, we can let them finish even if permission isn't granted yet,
-                    // but granting it is recommended.
-                }
-                
-                // We'll just provide a Skip button as well on the last page if they don't want to grant it immediately.
-                if (!isAccessibilityGranted) {
-                    TextButton(
-                        onClick = onFinishOnboarding,
+                else -> {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        },
                         modifier = Modifier.align(Alignment.CenterEnd)
                     ) {
-                        Text("Later")
+                        Text("Next")
                     }
                 }
             }
