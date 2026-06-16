@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.shortsblocker.xsdfwe"
     minSdk = 26
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.2"
+    versionCode = 4
+    versionName = "1.4"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -31,16 +31,7 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      val keystore = file("${rootDir}/debug.keystore")
-      val envBase64 = System.getenv("DEBUG_KEYSTORE_BASE64")
-      if (!keystore.exists() && !envBase64.isNullOrBlank()) {
-          try {
-              keystore.writeBytes(Base64.getMimeDecoder().decode(envBase64.replace("\\s".toRegex(), "")))
-          } catch (e: Exception) {
-              println("Failed to decode keystore: " + e.message)
-          }
-      }
-      storeFile = keystore
+      storeFile = file("${rootDir}/debug.keystore")
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"

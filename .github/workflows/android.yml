@@ -21,9 +21,15 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
+    - name: Prepare Debug Keystore
+      run: |
+        if [ -f "debug.keystore.base64" ]; then
+          base64 --decode --ignore-garbage debug.keystore.base64 > debug.keystore
+        else
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "cn=Unknown, ou=Unknown, o=Unknown, c=Unknown"
+        fi
+
     - name: Execute Local Gradle Compile
-      env:
-        DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
       run: gradle assembleDebug
 
     - name: Export Target Package Artifacts
