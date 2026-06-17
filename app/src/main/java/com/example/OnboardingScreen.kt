@@ -1,6 +1,7 @@
 package com.example
 
 import android.content.Intent
+import android.content.ComponentName
 import android.provider.Settings
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -42,37 +43,19 @@ fun ShortsBlockerOnboardingScreen(
     modifier: Modifier = Modifier,
     onFinishOnboarding: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val pagerState = rememberPagerState(pageCount = { 3 })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var isNotificationGranted by remember { 
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
-        )
-    }
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        isNotificationGranted = isGranted
-    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isOverlayGranted = Settings.canDrawOverlays(context)
                 isAccessibilityGranted = isAccessibilityPermissionGranted(context)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    isNotificationGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -93,181 +76,108 @@ fun ShortsBlockerOnboardingScreen(
         ) { page ->
             when (page) {
                 0 -> OnboardingPage(
-                    title = "Welcome to Shorts Blocker",
-                    description = "Take back control of your time. Stop mindless scrolling before it starts.",
-                    icon = Icons.Rounded.Shield,
-                    isAnimated = true,
-                    animationType = "bounce"
-                )
-                1 -> OnboardingPage(
-                    title = "How It Works",
-                    description = "We intercept addictive feeds on YouTube, Instagram, and Snapchat, giving you a chance to pause and exit.",
+                    title = "Break the Infinite Loop",
+                    description = "Take back control of your attention by adding mindful friction to YouTube and Instagram.",
                     icon = Icons.Rounded.Block,
-                    isAnimated = false
-                )
-                2 -> OnboardingPage(
-                    title = "Stability Protection",
-                    description = "To ensure the blocker stays active and isn't killed by the system, we need to show a permanent protection notification.",
-                    icon = Icons.Rounded.NotificationsActive,
                     isAnimated = true,
                     animationType = "bounce"
                 )
-                3 -> OnboardingPage(
-                    title = "Overlay Permission",
-                    description = "We need 'Display over other apps' to show the block screen over the addictive app.",
-                    icon = Icons.Rounded.Layers,
-                    isAnimated = true,
-                    animationType = "pulse"
-                )
-                4 -> OnboardingPage(
-                    title = "Accessibility Permission",
-                    description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
-                    icon = Icons.Rounded.VisibilityOff,
-                    isAnimated = true,
-                    animationType = "pulse"
-                )
-                5 -> OnboardingPage(
-                    title = "You're All Set",
-                    description = "Permissions are set. Let's reclaim your time.",
-                    icon = Icons.Rounded.CheckCircle,
-                    isAnimated = false
-                )
-            }
-        }
-
-        // Pager indicators
-        Row(
-            modifier = Modifier
-                .wrapContentHeight()
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            repeat(pagerState.pageCount) { iteration ->
-                val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-                val width = if (pagerState.currentPage == iteration) 24.dp else 12.dp
-                Box(
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .clip(CircleShape)
-                        .background(color)
-                        .height(8.dp)
-                        .width(width)
-                )
-            }
-        }
-
-        // Bottom Actions
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 32.dp)
-        ) {
-            TextButton(
-                onClick = onFinishOnboarding,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
-                Text("Skip")
-            }
-
-            when (pagerState.currentPage) {
-                2 -> {
-                    if (!isNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                            ) {
-                                Text("Grant Notification")
-                            }
-                        }
-                    } else {
-                        Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) {
-                            Text("Next")
-                        }
-                    }
-                }
-                3 -> {
-                    if (!isOverlayGranted) {
-                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        android.net.Uri.parse("package:${context.packageName}")
-                                    )
-                                    context.startActivity(intent)
-                                }
-                            ) {
-                                Text("Grant Overlay")
-                            }
-                        }
-                    } else {
-                        Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } },
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) {
-                            Text("Next")
-                        }
-                    }
-                }
-                4 -> {
-                    if (!isAccessibilityGranted) {
-                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                    context.startActivity(intent)
-                                }
-                            ) {
-                                Text("Grant Accessibility")
-                            }
-                        }
-                    } else {
-                        Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } },
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) {
-                            Text("Next")
-                        }
-                    }
-                }
-                5 -> {
-                    Button(
-                        onClick = onFinishOnboarding,
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    ) {
-                        Text("Finish & Start")
-                    }
-                }
-                else -> {
-                    Button(
+                1 -> Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.VerifiedUser,
+                        contentDescription = null,
+                        modifier = Modifier.size(100.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text("Core Setup", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "We need two permissions to detect scrolls and show the block screen.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                    
+                    PermissionItem(
+                        title = "Overlay Permission",
+                        isGranted = isOverlayGranted,
                         onClick = {
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                            }
-                        },
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    ) {
-                        Text("Next")
-                    }
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            )
+                            context.startActivity(intent)
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    PermissionItem(
+                        title = "Accessibility Permission",
+                        isGranted = isAccessibilityGranted,
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
+                    )
                 }
+                2 -> OnboardingPage(
+                    title = "You're All Set!",
+                    description = "Your time is valuable. Use it on things that actually matter to you.",
+                    icon = Icons.Rounded.TaskAlt,
+                    isAnimated = true,
+                    animationType = "pulse"
+                )
+            }
+        }
+
+        // Action Buttons
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (pagerState.currentPage < 2) {
+                TextButton(onClick = onFinishOnboarding) { Text("Skip") }
+                Button(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                    Text("Next")
+                }
+            } else {
+                Button(
+                    onClick = onFinishOnboarding,
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Get Started")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = if (isGranted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (isGranted) Icons.Rounded.CheckCircle else Icons.Rounded.LockOpen,
+                contentDescription = null,
+                tint = if (isGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            if (!isGranted) {
+                Text("Grant", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         }
     }

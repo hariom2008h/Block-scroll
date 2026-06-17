@@ -56,6 +56,11 @@ class ShortsBlockerService : AccessibilityService() {
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForegroundProtection()
+        return START_STICKY
+    }
+
     private fun startForegroundProtection() {
         createNotificationChannel()
 
@@ -66,12 +71,12 @@ class ShortsBlockerService : AccessibilityService() {
         )
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Shorts Blocker Active")
-            .setContentText("Protecting you from addictive feeds.")
-            .setSmallIcon(android.R.drawable.ic_lock_lock) // Use a standard lock icon
+            .setContentTitle("Shorts Blocker is Active")
+            .setContentText("Keeping accessibility service stable.")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW) // Minimal disturbance
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT) // Higher priority for MIUI
             .build()
 
         startForeground(NOTIFICATION_ID, notification)
