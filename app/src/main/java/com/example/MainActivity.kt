@@ -12,7 +12,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,12 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.rounded.*
-import androidx.core.content.ContextCompat
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -191,85 +184,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Section: Device Stability (Optional)
-            val isXiaomi = remember { 
-                Build.MANUFACTURER.contains("Xiaomi", ignoreCase = true) || 
-                Build.BRAND.contains("Xiaomi", ignoreCase = true) || 
-                Build.BRAND.contains("POCO", ignoreCase = true) || 
-                Build.BRAND.contains("Redmi", ignoreCase = true)
-            }
-            
-            var isNotificationGranted by remember { 
-                mutableStateOf(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-                    } else {
-                        true
-                    }
-                )
-            }
-
-            val permissionLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestPermission()
-            ) { isGranted ->
-                isNotificationGranted = isGranted
-            }
-
-            Text(
-                text = "Stability Check",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        "If the app stops working randomly, enable these options to keep it alive in the background.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    StabilityItem(
-                        title = "Stability Notification",
-                        description = "Keeps the service from being killed by Android.",
-                        isDone = isNotificationGranted,
-                        icon = Icons.Rounded.NotificationsActive,
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        }
-                    )
-
-                    if (isXiaomi) {
-                        StabilityItem(
-                            title = "Enable Auto-start",
-                            description = "Prevents Poco/Xiaomi from force-closing the blocker.",
-                            isDone = false, // We can't strictly check this easily, let them click
-                            icon = Icons.Rounded.RocketLaunch,
-                            onClick = {
-                                try {
-                                    val intent = Intent()
-                                    intent.component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                                }
-                            }
-                        )
-                    }
-                }
-            }
             
             // Section 2: Security
             Text(
@@ -577,37 +491,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     }
 
 
-}
-
-@Composable
-fun StabilityItem(title: String, description: String, isDone: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, androidx.compose.foundation.shape.CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (isDone) {
-                Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
-            } else {
-                Icon(Icons.Rounded.ChevronRight, null)
-            }
-        }
-    }
 }
 
 @Composable

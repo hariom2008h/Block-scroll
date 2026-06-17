@@ -1,7 +1,6 @@
 package com.example
 
 import android.content.Intent
-import android.content.ComponentName
 import android.provider.Settings
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -31,31 +30,32 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-
 @Composable
 fun ShortsBlockerOnboardingScreen(
     modifier: Modifier = Modifier,
     onFinishOnboarding: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 6 })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
+    var isBatteryIgnored by remember {
+        mutableStateOf(
+            (context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
+                .isIgnoringBatteryOptimizations(context.packageName)
+        )
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isOverlayGranted = Settings.canDrawOverlays(context)
                 isAccessibilityGranted = isAccessibilityPermissionGranted(context)
+                isBatteryIgnored = (context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
+                    .isIgnoringBatteryOptimizations(context.packageName)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -76,110 +76,238 @@ fun ShortsBlockerOnboardingScreen(
         ) { page ->
             when (page) {
                 0 -> OnboardingPage(
-                    title = "Break the Infinite Loop",
-                    description = "Take back control of your attention by adding mindful friction to YouTube and Instagram.",
-                    icon = Icons.Rounded.Block,
+                    title = "Welcome to Shorts Blocker",
+                    description = "Take back control of your time. Stop mindless scrolling before it starts.",
+                    icon = Icons.Rounded.Shield,
                     isAnimated = true,
                     animationType = "bounce"
                 )
-                1 -> Column(
-                    modifier = Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.VerifiedUser,
-                        contentDescription = null,
-                        modifier = Modifier.size(100.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text("Core Setup", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        "We need two permissions to detect scrolls and show the block screen.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-                    
-                    PermissionItem(
-                        title = "Overlay Permission",
-                        isGranted = isOverlayGranted,
-                        onClick = {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                android.net.Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
-                        }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    PermissionItem(
-                        title = "Accessibility Permission",
-                        isGranted = isAccessibilityGranted,
-                        onClick = {
-                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                        }
-                    )
-                }
+                1 -> OnboardingPage(
+                    title = "How It Works",
+                    description = "We intercept addictive feeds on YouTube, Instagram, and Snapchat, giving you a chance to pause and exit.",
+                    icon = Icons.Rounded.Block,
+                    isAnimated = false
+                )
                 2 -> OnboardingPage(
-                    title = "You're All Set!",
-                    description = "Your time is valuable. Use it on things that actually matter to you.",
-                    icon = Icons.Rounded.TaskAlt,
+                    title = "Overlay Permission",
+                    description = "We need 'Display over other apps' to show the block screen over the addictive app.",
+                    icon = Icons.Rounded.Layers,
                     isAnimated = true,
                     animationType = "pulse"
+                )
+                3 -> OnboardingPage(
+                    title = "Accessibility Permission",
+                    description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
+                    icon = Icons.Rounded.VisibilityOff,
+                    isAnimated = true,
+                    animationType = "pulse"
+                )
+                4 -> OnboardingPage(
+                    title = "Background Stability",
+                    description = "On phone's like POCO/Xiaomi, please enable 'Auto-start' and set Battery to 'No Restrictions' to keep blocker working.",
+                    icon = Icons.Rounded.BatteryChargingFull,
+                    isAnimated = true,
+                    animationType = "bounce"
+                )
+                5 -> OnboardingPage(
+                    title = "You're All Set",
+                    description = "Permissions are set. Let's reclaim your time.",
+                    icon = Icons.Rounded.CheckCircle,
+                    isAnimated = false
                 )
             }
         }
 
-        // Action Buttons
+        // Pager indicators
         Row(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .wrapContentHeight()
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            horizontalArrangement = Arrangement.Center
         ) {
-            if (pagerState.currentPage < 2) {
-                TextButton(onClick = onFinishOnboarding) { Text("Skip") }
-                Button(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                    Text("Next")
+            repeat(pagerState.pageCount) { iteration ->
+                val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                val width = if (pagerState.currentPage == iteration) 24.dp else 12.dp
+                Box(
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .height(8.dp)
+                        .width(width)
+                )
+            }
+        }
+
+        // Bottom Actions
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 32.dp)
+        ) {
+            TextButton(
+                onClick = onFinishOnboarding,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Text("Skip")
+            }
+
+            when (pagerState.currentPage) {
+                2 -> {
+                    if (!isOverlayGranted) {
+                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }) {
+                                Text("Next")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse("package:${context.packageName}")
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Grant Overlay")
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
+                        }
+                    }
                 }
-            } else {
-                Button(
-                    onClick = onFinishOnboarding,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
-                    Text("Get Started")
+                3 -> {
+                    if (!isAccessibilityGranted) {
+                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } }) {
+                                Text("Next")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Grant Accessibility")
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
+                        }
+                    }
+                }
+                4 -> {
+                    Column(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                             TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } }) {
+                                Text("Skip")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    openAutoStartSettings(context)
+                                }
+                            ) {
+                                Text("Auto-start Settings")
+                            }
+                        }
+                        
+                        if (!isBatteryIgnored) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = android.net.Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Text("Battery: No Restriction")
+                            }
+                        } else {
+                             Button(
+                                onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } },
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Text("Next")
+                            }
+                        }
+                    }
+                }
+                5 -> {
+                    Button(
+                        onClick = onFinishOnboarding,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Text("Finish & Start")
+                    }
+                }
+                else -> {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Text("Next")
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = if (isGranted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (isGranted) Icons.Rounded.CheckCircle else Icons.Rounded.LockOpen,
-                contentDescription = null,
-                tint = if (isGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            if (!isGranted) {
-                Text("Grant", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            }
+private fun openAutoStartSettings(context: android.content.Context) {
+    val intents = listOf(
+        Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+        Intent().setComponent(android.content.ComponentName("com.letv.android.letvsafe", "com.letv.android.letvsafe.AutobootManageActivity")),
+        Intent().setComponent(android.content.ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity")),
+        Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
+        Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity")),
+        Intent().setComponent(android.content.ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity")),
+        Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
+        Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")),
+        Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")),
+        Intent().setComponent(android.content.ComponentName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")),
+        Intent().setComponent(android.content.ComponentName("com.htc.pitroad", "com.htc.pitroad.landingpage.activity.LandingPageActivity")),
+        Intent().setComponent(android.content.ComponentName("com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity"))
+    )
+
+    for (intent in intents) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            return
+        } catch (e: Exception) {
+            // Check next
         }
+    }
+    
+    // Fallback to application details if no specific intent works
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Total fallback
     }
 }
 

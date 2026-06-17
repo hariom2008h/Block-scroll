@@ -22,16 +22,8 @@ import android.media.AudioManager
 import android.media.AudioFocusRequest
 import android.os.Build
 import android.view.KeyEvent
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import androidx.core.app.NotificationCompat
 
 class ShortsBlockerService : AccessibilityService() {
-
-    private val CHANNEL_ID = "protection_channel"
-    private val NOTIFICATION_ID = 101
 
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
@@ -50,49 +42,9 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        startForegroundProtection()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForegroundProtection()
-        return START_STICKY
-    }
-
-    private fun startForegroundProtection() {
-        createNotificationChannel()
-
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, notificationIntent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
-        )
-
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Shorts Blocker is Active")
-            .setContentText("Keeping accessibility service stable.")
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT) // Higher priority for MIUI
-            .build()
-
-        startForeground(NOTIFICATION_ID, notification)
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
-                CHANNEL_ID,
-                "Protection Service Channel",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            serviceChannel.description = "Ensures the service remains active on all devices."
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(serviceChannel)
-        }
     }
 
     private fun requestAudioFocusToPauseMedia() {
