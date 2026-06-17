@@ -35,27 +35,19 @@ fun ShortsBlockerOnboardingScreen(
     modifier: Modifier = Modifier,
     onFinishOnboarding: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val pagerState = rememberPagerState(pageCount = { 5 })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
-    var isBatteryIgnored by remember {
-        mutableStateOf(
-            (context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
-                .isIgnoringBatteryOptimizations(context.packageName)
-        )
-    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isOverlayGranted = Settings.canDrawOverlays(context)
                 isAccessibilityGranted = isAccessibilityPermissionGranted(context)
-                isBatteryIgnored = (context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
-                    .isIgnoringBatteryOptimizations(context.packageName)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -103,13 +95,6 @@ fun ShortsBlockerOnboardingScreen(
                     animationType = "pulse"
                 )
                 4 -> OnboardingPage(
-                    title = "Background Stability",
-                    description = "On phone's like POCO/Xiaomi, please enable 'Auto-start' and set Battery to 'No Restrictions' to keep blocker working.",
-                    icon = Icons.Rounded.BatteryChargingFull,
-                    isAnimated = true,
-                    animationType = "bounce"
-                )
-                5 -> OnboardingPage(
                     title = "You're All Set",
                     description = "Permissions are set. Let's reclaim your time.",
                     icon = Icons.Rounded.CheckCircle,
@@ -208,47 +193,6 @@ fun ShortsBlockerOnboardingScreen(
                     }
                 }
                 4 -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                             TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } }) {
-                                Text("Skip")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    openAutoStartSettings(context)
-                                }
-                            ) {
-                                Text("Auto-start Settings")
-                            }
-                        }
-                        
-                        if (!isBatteryIgnored) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = android.net.Uri.parse("package:${context.packageName}")
-                                    }
-                                    context.startActivity(intent)
-                                }
-                            ) {
-                                Text("Battery: No Restriction")
-                            }
-                        } else {
-                             Button(
-                                onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } },
-                                modifier = Modifier.padding(top = 8.dp)
-                            ) {
-                                Text("Next")
-                            }
-                        }
-                    }
-                }
-                5 -> {
                     Button(
                         onClick = onFinishOnboarding,
                         modifier = Modifier.align(Alignment.CenterEnd)
@@ -270,44 +214,6 @@ fun ShortsBlockerOnboardingScreen(
                 }
             }
         }
-    }
-}
-
-private fun openAutoStartSettings(context: android.content.Context) {
-    val intents = listOf(
-        Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
-        Intent().setComponent(android.content.ComponentName("com.letv.android.letvsafe", "com.letv.android.letvsafe.AutobootManageActivity")),
-        Intent().setComponent(android.content.ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity")),
-        Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
-        Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity")),
-        Intent().setComponent(android.content.ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity")),
-        Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
-        Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")),
-        Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")),
-        Intent().setComponent(android.content.ComponentName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")),
-        Intent().setComponent(android.content.ComponentName("com.htc.pitroad", "com.htc.pitroad.landingpage.activity.LandingPageActivity")),
-        Intent().setComponent(android.content.ComponentName("com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity"))
-    )
-
-    for (intent in intents) {
-        try {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            return
-        } catch (e: Exception) {
-            // Check next
-        }
-    }
-    
-    // Fallback to application details if no specific intent works
-    try {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = android.net.Uri.parse("package:${context.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        // Total fallback
     }
 }
 

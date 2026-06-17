@@ -22,8 +22,14 @@ import android.media.AudioManager
 import android.media.AudioFocusRequest
 import android.os.Build
 import android.view.KeyEvent
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.ServiceInfo
+import androidx.core.app.NotificationCompat
 
 class ShortsBlockerService : AccessibilityService() {
+    private val NOTIFICATION_ID = 4040
 
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
@@ -42,6 +48,37 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    "shorts_blocker_channel",
+                    "Service Status",
+                    NotificationManager.IMPORTANCE_MIN
+                ).apply {
+                    description = "Keeps the blocker service alive."
+                }
+                val notificationManager = getSystemService(NotificationManager::class.java)
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val notification = NotificationCompat.Builder(this, "shorts_blocker_channel")
+                .setContentTitle("Shorts Blocker")
+                .setContentText("Running in background to block shorts")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setOngoing(true)
+                .build()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
