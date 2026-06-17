@@ -30,24 +30,49 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+
 @Composable
 fun ShortsBlockerOnboardingScreen(
     modifier: Modifier = Modifier,
     onFinishOnboarding: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 5 })
+    val pagerState = rememberPagerState(pageCount = { 6 })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    var isNotificationGranted by remember { 
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        isNotificationGranted = isGranted
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isOverlayGranted = Settings.canDrawOverlays(context)
                 isAccessibilityGranted = isAccessibilityPermissionGranted(context)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    isNotificationGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -81,20 +106,27 @@ fun ShortsBlockerOnboardingScreen(
                     isAnimated = false
                 )
                 2 -> OnboardingPage(
+                    title = "Stability Protection",
+                    description = "To ensure the blocker stays active and isn't killed by the system, we need to show a permanent protection notification.",
+                    icon = Icons.Rounded.NotificationsActive,
+                    isAnimated = true,
+                    animationType = "bounce"
+                )
+                3 -> OnboardingPage(
                     title = "Overlay Permission",
                     description = "We need 'Display over other apps' to show the block screen over the addictive app.",
                     icon = Icons.Rounded.Layers,
                     isAnimated = true,
                     animationType = "pulse"
                 )
-                3 -> OnboardingPage(
+                4 -> OnboardingPage(
                     title = "Accessibility Permission",
                     description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
                     icon = Icons.Rounded.VisibilityOff,
                     isAnimated = true,
                     animationType = "pulse"
                 )
-                4 -> OnboardingPage(
+                5 -> OnboardingPage(
                     title = "You're All Set",
                     description = "Permissions are set. Let's reclaim your time.",
                     icon = Icons.Rounded.CheckCircle,
@@ -140,9 +172,33 @@ fun ShortsBlockerOnboardingScreen(
 
             when (pagerState.currentPage) {
                 2 -> {
-                    if (!isOverlayGranted) {
+                    if (!isNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }) {
+                                Text("Next")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            ) {
+                                Text("Grant Notification")
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
+                        }
+                    }
+                }
+                3 -> {
+                    if (!isOverlayGranted) {
+                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } }) {
                                 Text("Next")
                             }
                             Spacer(modifier=Modifier.width(8.dp))
@@ -160,17 +216,17 @@ fun ShortsBlockerOnboardingScreen(
                         }
                     } else {
                         Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Next")
                         }
                     }
                 }
-                3 -> {
+                4 -> {
                     if (!isAccessibilityGranted) {
                          Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } }) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } }) {
                                 Text("Next")
                             }
                             Spacer(modifier=Modifier.width(8.dp))
@@ -185,14 +241,14 @@ fun ShortsBlockerOnboardingScreen(
                         }
                     } else {
                         Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } },
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Next")
                         }
                     }
                 }
-                4 -> {
+                5 -> {
                     Button(
                         onClick = onFinishOnboarding,
                         modifier = Modifier.align(Alignment.CenterEnd)
