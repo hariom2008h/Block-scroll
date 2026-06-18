@@ -1,5 +1,6 @@
 package com.example
 
+import kotlinx.coroutines.*
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
@@ -29,6 +30,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
+import android.os.PowerManager
 
 class ShortsBlockerService : AccessibilityService() {
     private val NOTIFICATION_ID = 4040
@@ -38,72 +40,87 @@ class ShortsBlockerService : AccessibilityService() {
     private var isOverlayShowing = false
     private var sharedPreferences: SharedPreferences? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
     private var lastUnlockTime = 0L
     
-    // Check periodically for cooldown expiry and active shorts
-    private val periodicCheckRunnable = object : Runnable {
-        override fun run() {
-            try {
-                if (!isOverlayShowing) {
-                    val currentTime = System.currentTimeMillis()
-                    val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
-                    val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
-                    
-                    val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
-                    var isWatchingShorts = false
-                    
-                    if (rootNode != null) {
-                        val packageName = rootNode.packageName?.toString() ?: ""
-                        if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
-                            val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
-                            val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
-                            val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
-                            
-                            isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
-                            if (isWatchingShorts) {
-                                if (currentTime >= lastUnlockTime + sessionCooldownMs) {
-                                    val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
-                                    val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
-                                    val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
-                                    
-                                    val isStrictMode = when {
-                                        packageName.contains("youtube") -> strictModeYT
-                                        packageName.contains("instagram") -> strictModeIG
-                                        packageName.contains("snapchat") -> strictModeSC
-                                        else -> false
-                                    }
-                                    
-                                    lastBlockedPackage = packageName
-                                    
-                                    if (isStrictMode) {
-                                        lastBackNavigationTime = System.currentTimeMillis()
-                                        redirectToSafeFeed()
-                                    } else {
-                                        showFrictionOverlay()
+    private var checkJob: Job? = null
+    
+    private fun startPeriodicCheck() {
+        checkJob?.cancel()
+        checkJob = serviceScope.launch {
+            while(isActive) {
+                try {
+                    if (!isOverlayShowing) {
+                        val currentTime = System.currentTimeMillis()
+                        val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
+                        val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
+                        
+                        val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
+                        var isWatchingShorts = false
+                        
+                        if (rootNode != null) {
+                            val packageName = rootNode.packageName?.toString() ?: ""
+                            if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
+                                val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
+                                val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
+                                val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
+                                
+                                isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                                if (isWatchingShorts) {
+                                    if (currentTime >= lastUnlockTime + sessionCooldownMs) {
+                                        val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
+                                        val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
+                                        val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
+                                        
+                                        val isStrictMode = when {
+                                            packageName.contains("youtube") -> strictModeYT
+                                            packageName.contains("instagram") -> strictModeIG
+                                            packageName.contains("snapchat") -> strictModeSC
+                                            else -> false
+                                        }
+                                        
+                                        lastBlockedPackage = packageName
+                                        
+                                        if (isStrictMode) {
+                                            lastBackNavigationTime = System.currentTimeMillis()
+                                            // UI Calls must be main safe, which redirectToSafeFeed and showFrictionOverlay handle via Handlers
+                                            redirectToSafeFeed()
+                                        } else {
+                                            showFrictionOverlay()
+                                        }
                                     }
                                 }
                             }
+                            try {
+                                rootNode.recycle()
+                            } catch (e: Exception) {}
                         }
-                        try {
-                            rootNode.recycle()
-                        } catch (e: Exception) {}
-                    }
-                    
-                    val enableFloatingTimer = sharedPreferences?.getBoolean("enable_floating_timer", false) ?: false
-                    
-                    if (enableFloatingTimer && isWatchingShorts && currentTime < lastUnlockTime + sessionCooldownMs) {
-                        showOrUpdateProgressOverlay(lastUnlockTime + sessionCooldownMs - currentTime)
+                        
+                        val enableFloatingTimer = sharedPreferences?.getBoolean("enable_floating_timer", false) ?: false
+                        
+                        if (enableFloatingTimer && isWatchingShorts && currentTime < lastUnlockTime + sessionCooldownMs) {
+                            showOrUpdateProgressOverlay(lastUnlockTime + sessionCooldownMs - currentTime)
+                        } else {
+                            removeProgressOverlay()
+                        }
+                        
+                        if (isWatchingShorts) {
+                            partialWakeLock?.acquire(3 * 60 * 1000L)
+                        } else {
+                            if (partialWakeLock?.isHeld == true) {
+                                partialWakeLock?.release()
+                            }
+                        }
                     } else {
                         removeProgressOverlay()
+                        partialWakeLock?.acquire(3 * 60 * 1000L)
                     }
-                } else {
-                    removeProgressOverlay()
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                mainHandler.postDelayed(this, 1000L) // Check every 1 second
+                
+                delay(1000L) // Wait before next iteration
             }
         }
     }
@@ -218,10 +235,15 @@ class ShortsBlockerService : AccessibilityService() {
     private var lastBlockedPackage = ""
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
+    private var partialWakeLock: PowerManager.WakeLock? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            partialWakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ShortsBlocker:WakeLock")
+            partialWakeLock?.setReferenceCounted(false)
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     "shorts_blocker_channel",
@@ -256,11 +278,11 @@ class ShortsBlockerService : AccessibilityService() {
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         
-        mainHandler.post(periodicCheckRunnable)
+        startPeriodicCheck()
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
-        mainHandler.removeCallbacks(periodicCheckRunnable)
+        checkJob?.cancel()
         return super.onUnbind(intent)
     }
 
@@ -386,57 +408,62 @@ class ShortsBlockerService : AccessibilityService() {
                     return
                 }
                 lastProcessTime = currentTime
-
-                var isAddictiveMedia = false
-
+                
                 val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
                 val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
-                // Check event source node if available
-                val eventSource = event.source
-                if (eventSource != null) {
-                    isAddictiveMedia = checkNodeForShortsOrReels(eventSource, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                // Handle layout traversal on a background thread to prevent ANRs.
+                // We must grab event.source synchronously before the event is recycled by Android.
+                val safeSourceNode = try { event.source } catch (e: Exception) { null }
+                
+                serviceScope.launch {
                     try {
-                        eventSource.recycle()
-                    } catch (e: Exception) { /* ignore */ }
-                }
+                        var isAddictiveMedia = safeSourceNode?.let {
+                            checkNodeForShortsOrReels(it, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                        } ?: false
 
-                // Fallback: check whole visible active window layout hierarchy
-                if (!isAddictiveMedia) {
-                    val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
-                    if (rootNode != null) {
-                        isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
-                        try {
-                            rootNode.recycle()
-                        } catch (e: Exception) { /* ignore */ }
-                    }
-                }
+                        // Fallback: check whole visible active window layout hierarchy
+                        if (!isAddictiveMedia) {
+                            val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
+                            if (rootNode != null) {
+                                isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                                try {
+                                    rootNode.recycle()
+                                } catch (e: Exception) { /* ignore */ }
+                            }
+                        }
 
-                if (isAddictiveMedia) {
-                    val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
-                    val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
-                    val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
-                    
-                    val isStrictMode = when {
-                        packageName.contains("youtube") -> strictModeYT
-                        packageName.contains("instagram") -> strictModeIG
-                        packageName.contains("snapchat") -> strictModeSC
-                        else -> false
+                        if (isAddictiveMedia) {
+                            val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
+                            val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
+                            val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
+                            
+                            val isStrictMode = when {
+                                packageName.contains("youtube") -> strictModeYT
+                                packageName.contains("instagram") -> strictModeIG
+                                packageName.contains("snapchat") -> strictModeSC
+                                else -> false
+                            }
+                            
+                            lastBlockedPackage = packageName
+                            
+                            if (isStrictMode) {
+                                lastBackNavigationTime = System.currentTimeMillis()
+                                redirectToSafeFeed()
+                            } else {
+                                showFrictionOverlay()
+                            }
+                        } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                            // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
+                            // We don't do this on CONTENT_CHANGED to prevent flickering while shorts is still loading.
+                            removeFrictionOverlay()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        try { safeSourceNode?.recycle() } catch (e:Exception){}
                     }
-                    
-                    lastBlockedPackage = packageName
-                    
-                    if (isStrictMode) {
-                        lastBackNavigationTime = System.currentTimeMillis()
-                        redirectToSafeFeed()
-                    } else {
-                        showFrictionOverlay()
-                    }
-                } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                    // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
-                    // We don't do this on CONTENT_CHANGED to prevent flickering while shorts is still loading.
-                    removeFrictionOverlay()
                 }
             }
         } catch (e: Exception) {
@@ -446,7 +473,7 @@ class ShortsBlockerService : AccessibilityService() {
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int, nodeCount: IntArray): Boolean {
         if (node == null || !node.isVisibleToUser) return false
-        if (depth > 40 || nodeCount[0] > 1000) return false // Max 40 depth, 1000 nodes total
+        if (depth > 15 || nodeCount[0] > 150) return false // Strictly limit to prevent ANR
         nodeCount[0]++
 
         try {
@@ -800,5 +827,8 @@ class ShortsBlockerService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         removeFrictionOverlay()
+        if (partialWakeLock?.isHeld == true) {
+            partialWakeLock?.release()
+        }
     }
 }
