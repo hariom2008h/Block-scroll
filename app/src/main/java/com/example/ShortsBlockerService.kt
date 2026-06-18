@@ -39,6 +39,62 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastUnlockTime = 0L
     
+    // Check periodically for cooldown expiry and active shorts
+    private val periodicCheckRunnable = object : Runnable {
+        override fun run() {
+            try {
+                if (!isOverlayShowing) {
+                    val currentTime = System.currentTimeMillis()
+                    val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
+                    val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
+                    
+                    if (currentTime >= lastUnlockTime + sessionCooldownMs) {
+                        // Cooldown expired, check if watching shorts
+                        val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
+                        if (rootNode != null) {
+                            val packageName = rootNode.packageName?.toString() ?: ""
+                            if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
+                                val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
+                                val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
+                                val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
+                                
+                                val isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
+                                if (isAddictiveMedia) {
+                                    val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
+                                    val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
+                                    val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
+                                    
+                                    val isStrictMode = when {
+                                        packageName.contains("youtube") -> strictModeYT
+                                        packageName.contains("instagram") -> strictModeIG
+                                        packageName.contains("snapchat") -> strictModeSC
+                                        else -> false
+                                    }
+                                    
+                                    lastBlockedPackage = packageName
+                                    
+                                    if (isStrictMode) {
+                                        lastBackNavigationTime = System.currentTimeMillis()
+                                        redirectToSafeFeed()
+                                    } else {
+                                        showFrictionOverlay()
+                                    }
+                                }
+                            }
+                            try {
+                                rootNode.recycle()
+                            } catch (e: Exception) {}
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                mainHandler.postDelayed(this, 1500L) // Check every 1.5 seconds
+            }
+        }
+    }
+    
     private var lastBackNavigationTime = 0L
     private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
     
@@ -82,6 +138,13 @@ class ShortsBlockerService : AccessibilityService() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        
+        mainHandler.post(periodicCheckRunnable)
+    }
+
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        mainHandler.removeCallbacks(periodicCheckRunnable)
+        return super.onUnbind(intent)
     }
 
     private fun requestAudioFocusToPauseMedia() {
@@ -132,7 +195,7 @@ class ShortsBlockerService : AccessibilityService() {
     }
 
     private var lastProcessTime = 0L
-    private val THROTTLE_MS = 250L
+    private val THROTTLE_MS = 600L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -200,6 +263,7 @@ class ShortsBlockerService : AccessibilityService() {
             // Trigger on state change, scroll, or click. Limit CONTENT_CHANGED aggressively to prevent ANRs.
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
                 eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                 
                 var isAddictiveMedia = false
