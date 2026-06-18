@@ -30,12 +30,35 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
+enum class OnboardingStep {
+    WELCOME,
+    HOW_IT_WORKS,
+    NOTIFICATION,
+    OVERLAY,
+    ACCESSIBILITY,
+    ALL_SET
+}
+
 @Composable
 fun ShortsBlockerOnboardingScreen(
     modifier: Modifier = Modifier,
     onFinishOnboarding: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 6 })
+    val steps = remember {
+        val list = mutableListOf(
+            OnboardingStep.WELCOME,
+            OnboardingStep.HOW_IT_WORKS
+        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            list.add(OnboardingStep.NOTIFICATION)
+        }
+        list.add(OnboardingStep.OVERLAY)
+        list.add(OnboardingStep.ACCESSIBILITY)
+        list.add(OnboardingStep.ALL_SET)
+        list
+    }
+    
+    val pagerState = rememberPagerState(pageCount = { steps.size })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -88,42 +111,42 @@ fun ShortsBlockerOnboardingScreen(
             state = pagerState,
             modifier = Modifier.weight(1f)
         ) { page ->
-            when (page) {
-                0 -> OnboardingPage(
+            when (steps[page]) {
+                OnboardingStep.WELCOME -> OnboardingPage(
                     title = "Welcome to Shorts Blocker",
                     description = "Take back control of your time. Stop mindless scrolling before it starts.",
                     icon = Icons.Rounded.Shield,
                     isAnimated = true,
                     animationType = "bounce"
                 )
-                1 -> OnboardingPage(
+                OnboardingStep.HOW_IT_WORKS -> OnboardingPage(
                     title = "How It Works",
                     description = "We intercept addictive feeds on YouTube, Instagram, and Snapchat, giving you a chance to pause and exit.",
                     icon = Icons.Rounded.Block,
                     isAnimated = false
                 )
-                2 -> OnboardingPage(
+                OnboardingStep.NOTIFICATION -> OnboardingPage(
                     title = "Notifications Permission",
                     description = "We need notification permission to keep the service alive in the background and send you reminders.",
                     icon = Icons.Rounded.Notifications,
                     isAnimated = true,
                     animationType = "pulse"
                 )
-                3 -> OnboardingPage(
+                OnboardingStep.OVERLAY -> OnboardingPage(
                     title = "Overlay Permission",
                     description = "We need 'Display over other apps' to show the block screen over the addictive app.",
                     icon = Icons.Rounded.Layers,
                     isAnimated = true,
                     animationType = "pulse"
                 )
-                4 -> OnboardingPage(
+                OnboardingStep.ACCESSIBILITY -> OnboardingPage(
                     title = "Accessibility Permission",
                     description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
                     icon = Icons.Rounded.VisibilityOff,
                     isAnimated = true,
                     animationType = "pulse"
                 )
-                5 -> OnboardingPage(
+                OnboardingStep.ALL_SET -> OnboardingPage(
                     title = "You're All Set",
                     description = "Permissions are set. Let's reclaim your time.",
                     icon = Icons.Rounded.CheckCircle,
@@ -167,11 +190,12 @@ fun ShortsBlockerOnboardingScreen(
                 Text("Skip")
             }
 
-            when (pagerState.currentPage) {
-                2 -> {
+            val currentStep = steps[pagerState.currentPage]
+            when (currentStep) {
+                OnboardingStep.NOTIFICATION -> {
                     if (!isNotificationGranted) {
                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } }) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
                                 Text("Next")
                             }
                             Spacer(modifier=Modifier.width(8.dp))
@@ -187,17 +211,17 @@ fun ShortsBlockerOnboardingScreen(
                         }
                     } else {
                         Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Next")
                         }
                     }
                 }
-                3 -> {
+                OnboardingStep.OVERLAY -> {
                     if (!isOverlayGranted) {
                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } }) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
                                 Text("Next")
                             }
                             Spacer(modifier=Modifier.width(8.dp))
@@ -215,17 +239,17 @@ fun ShortsBlockerOnboardingScreen(
                         }
                     } else {
                         Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(4) } },
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Next")
                         }
                     }
                 }
-                4 -> {
+                OnboardingStep.ACCESSIBILITY -> {
                     if (!isAccessibilityGranted) {
                          Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } }) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
                                 Text("Next")
                             }
                             Spacer(modifier=Modifier.width(8.dp))
@@ -240,14 +264,14 @@ fun ShortsBlockerOnboardingScreen(
                         }
                     } else {
                         Button(
-                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(5) } },
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Next")
                         }
                     }
                 }
-                5 -> {
+                OnboardingStep.ALL_SET -> {
                     Button(
                         onClick = onFinishOnboarding,
                         modifier = Modifier.align(Alignment.CenterEnd)
