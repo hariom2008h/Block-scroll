@@ -78,7 +78,10 @@ fun ShortsBlockerSystemSettingsScreen(
             title = {
                 Text(
                     text = "System Settings",
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    softWrap = false
                 )
             },
             navigationIcon = {
@@ -101,7 +104,7 @@ fun ShortsBlockerSystemSettingsScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp)
         ) {
-            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
             Spacer(modifier = Modifier.height(8.dp))
             
             val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
@@ -180,7 +183,7 @@ fun ShortsBlockerSystemSettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
-            Text("Appearance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("Appearance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(

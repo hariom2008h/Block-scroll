@@ -14,7 +14,9 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
+import android.view.Gravity
 
 import android.view.accessibility.AccessibilityWindowInfo
 import android.view.accessibility.AccessibilityNodeInfo
@@ -48,18 +50,19 @@ class ShortsBlockerService : AccessibilityService() {
                     val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
                     val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
                     
-                    if (currentTime >= lastUnlockTime + sessionCooldownMs) {
-                        // Cooldown expired, check if watching shorts
-                        val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
-                        if (rootNode != null) {
-                            val packageName = rootNode.packageName?.toString() ?: ""
-                            if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
-                                val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
-                                val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
-                                val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
-                                
-                                val isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
-                                if (isAddictiveMedia) {
+                    val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
+                    var isWatchingShorts = false
+                    
+                    if (rootNode != null) {
+                        val packageName = rootNode.packageName?.toString() ?: ""
+                        if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
+                            val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
+                            val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
+                            val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
+                            
+                            isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
+                            if (isWatchingShorts) {
+                                if (currentTime >= lastUnlockTime + sessionCooldownMs) {
                                     val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                                     val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
                                     val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
@@ -81,20 +84,134 @@ class ShortsBlockerService : AccessibilityService() {
                                     }
                                 }
                             }
-                            try {
-                                rootNode.recycle()
-                            } catch (e: Exception) {}
                         }
+                        try {
+                            rootNode.recycle()
+                        } catch (e: Exception) {}
                     }
+                    
+                    val enableFloatingTimer = sharedPreferences?.getBoolean("enable_floating_timer", false) ?: false
+                    
+                    if (enableFloatingTimer && isWatchingShorts && currentTime < lastUnlockTime + sessionCooldownMs) {
+                        showOrUpdateProgressOverlay(lastUnlockTime + sessionCooldownMs - currentTime)
+                    } else {
+                        removeProgressOverlay()
+                    }
+                } else {
+                    removeProgressOverlay()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                mainHandler.postDelayed(this, 1500L) // Check every 1.5 seconds
+                mainHandler.postDelayed(this, 1000L) // Check every 1 second
             }
         }
     }
     
+    private var progressOverlayView: View? = null
+    private var isProgressOverlayShowing = false
+
+    private fun showOrUpdateProgressOverlay(timeLeftMs: Long) {
+        if (!Settings.canDrawOverlays(this)) return
+
+        val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
+        val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
+
+        mainHandler.post {
+            if (progressOverlayView == null) {
+                val context = android.view.ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault)
+                val container = android.widget.LinearLayout(context).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setBackgroundColor(android.graphics.Color.parseColor("#99000000")) // Semi-transparent black
+                    setPadding(24, 16, 24, 16)
+                    
+                    val shape = android.graphics.drawable.GradientDrawable()
+                    shape.cornerRadius = 20f
+                    shape.setColor(android.graphics.Color.parseColor("#99000000"))
+                    background = shape
+                }
+                
+                val text = TextView(context).apply {
+                    tag = "progress_text"
+                    setTextColor(android.graphics.Color.WHITE)
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setPadding(0, 0, 0, 8)
+                }
+                
+                val progressBar = android.widget.ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    tag = "progress_bar"
+                    isIndeterminate = false
+                    max = sessionCooldownMs.toInt()
+                    progress = timeLeftMs.toInt()
+                    layoutParams = android.widget.LinearLayout.LayoutParams(200, 10)
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        progressTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50"))
+                    }
+                }
+                
+                container.addView(text)
+                container.addView(progressBar)
+                progressOverlayView = container
+                
+                val layoutParams = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    x = 32
+                    y = 120 // Adjust to not overlap with status bar
+                }
+                
+                try {
+                    windowManager.addView(progressOverlayView, layoutParams)
+                    isProgressOverlayShowing = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            
+            // Update existing view
+            progressOverlayView?.let { container ->
+                val text = container.findViewWithTag<TextView>("progress_text")
+                val bar = container.findViewWithTag<android.widget.ProgressBar>("progress_bar")
+                
+                val secondsLeft = timeLeftMs / 1000
+                val min = secondsLeft / 60
+                val sec = secondsLeft % 60
+                text?.text = String.format("Block in %02d:%02d", min, sec)
+                
+                bar?.max = sessionCooldownMs.toInt()
+                bar?.progress = timeLeftMs.toInt()
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    if (timeLeftMs < 10000) {
+                        bar?.progressTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#F44336")) // Red if < 10s
+                    } else {
+                        bar?.progressTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")) // Green
+                    }
+                }
+            }
+        }
+    }
+
+    private fun removeProgressOverlay() {
+        mainHandler.post {
+            if (isProgressOverlayShowing && progressOverlayView != null) {
+                try {
+                    windowManager.removeView(progressOverlayView)
+                } catch (e: Exception) {}
+                progressOverlayView = null
+                isProgressOverlayShowing = false
+            }
+        }
+    }
+
     private var lastBackNavigationTime = 0L
     private val BACK_NAVIGATION_COOLDOWN_MS = 2500L // Small cooldown to prevent loop after pressing Go Back
     
@@ -254,13 +371,11 @@ class ShortsBlockerService : AccessibilityService() {
             }
             
             // Debounce intensive checks to prevent ANRs which cause "This service is malfunctioning"
-            if (currentTime - lastProcessTime < THROTTLE_MS && event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-                return
-            }
-            lastProcessTime = currentTime
+            // We only throttle the fallback root traversal, not the event source check.
+            val isThrottled = (currentTime - lastProcessTime < THROTTLE_MS)
 
             val eventType = event.eventType
-            // Trigger on state change, scroll, or click. Limit CONTENT_CHANGED aggressively to prevent ANRs.
+            // Trigger on state change, scroll, or click.
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
@@ -272,7 +387,7 @@ class ShortsBlockerService : AccessibilityService() {
                 val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
-                // Check event source node if available
+                // Check event source node if available - this is fast, no need to throttle
                 val eventSource = event.source
                 if (eventSource != null) {
                     isAddictiveMedia = checkNodeForShortsOrReels(eventSource, blockYT, blockIG, blockSC, 0)
@@ -281,8 +396,10 @@ class ShortsBlockerService : AccessibilityService() {
                     } catch (e: Exception) { /* ignore */ }
                 }
 
-                // Fallback: check whole visible active window layout hierarchy if the event source did not match
-                if (!isAddictiveMedia && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                // Fallback: check whole visible active window layout hierarchy if the event source did not match.
+                // We throttle this because rootInActiveWindow can cause ANRs if called too often on CONTENT_CHANGED.
+                if (!isAddictiveMedia && !isThrottled && (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
+                    lastProcessTime = currentTime
                     val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
                     if (rootNode != null) {
                         isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
@@ -325,7 +442,7 @@ class ShortsBlockerService : AccessibilityService() {
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int): Boolean {
         if (node == null || !node.isVisibleToUser) return false
-        if (depth > 25) return false
+        if (depth > 50) return false
 
         try {
             val viewId = node.viewIdResourceName ?: ""
@@ -468,6 +585,8 @@ class ShortsBlockerService : AccessibilityService() {
                         }
 
                         lastUnlockTime = System.currentTimeMillis()
+                        val bypassCount = sharedPreferences?.getInt("bypass_count", 0) ?: 0
+                        sharedPreferences?.edit()?.putInt("bypass_count", bypassCount + 1)?.apply()
                         removeFrictionOverlay()
                     } else {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
