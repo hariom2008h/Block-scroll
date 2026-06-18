@@ -41,13 +41,13 @@ fun ShortsBlockerOnboardingScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    var isAccessibilityGranted by remember { mutableStateOf(PermissionHelper.hasAccessibilityPermission(context)) }
+    var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isOverlayGranted = Settings.canDrawOverlays(context)
-                isAccessibilityGranted = PermissionHelper.hasAccessibilityPermission(context)
+                isAccessibilityGranted = isAccessibilityPermissionGranted(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -129,8 +129,7 @@ fun ShortsBlockerOnboardingScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 32.dp)
+                .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
             TextButton(
                 onClick = onFinishOnboarding,
@@ -149,7 +148,11 @@ fun ShortsBlockerOnboardingScreen(
                             Spacer(modifier=Modifier.width(8.dp))
                             Button(
                                 onClick = {
-                                    PermissionHelper.promptOverlayPermission(context)
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse("package:${context.packageName}")
+                                    )
+                                    context.startActivity(intent)
                                 }
                             ) {
                                 Text("Grant Overlay")
@@ -173,10 +176,11 @@ fun ShortsBlockerOnboardingScreen(
                             Spacer(modifier=Modifier.width(8.dp))
                             Button(
                                 onClick = {
-                                    PermissionHelper.promptAccessibilityPermission(context)
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
                                 }
                             ) {
-                                Text("Grant Access")
+                                Text("Grant Accessibility")
                             }
                         }
                     } else {
@@ -211,6 +215,13 @@ fun ShortsBlockerOnboardingScreen(
             }
         }
     }
+}
+
+// Simple helper inside here just to detect if it's on without throwing errors, 
+// using the same logic we've used in the rest of the application
+private fun isAccessibilityPermissionGranted(context: android.content.Context): Boolean {
+    val enabledServices = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+    return enabledServices?.contains(context.packageName) == true
 }
 
 @Composable

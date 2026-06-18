@@ -131,6 +131,9 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
+    private var lastProcessTime = 0L
+    private val THROTTLE_MS = 250L
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
@@ -186,12 +189,17 @@ class ShortsBlockerService : AccessibilityService() {
             if (currentTime < lastBackNavigationTime + BACK_NAVIGATION_COOLDOWN_MS) {
                 return
             }
+            
+            // Debounce intensive checks to prevent ANRs which cause "This service is malfunctioning"
+            if (currentTime - lastProcessTime < THROTTLE_MS && event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                return
+            }
+            lastProcessTime = currentTime
 
             val eventType = event.eventType
-            // Trigger on any scroll, content change, window state change, or click to guarantee it fires
+            // Trigger on state change, scroll, or click. Limit CONTENT_CHANGED aggressively to prevent ANRs.
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
                 eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                 
                 var isAddictiveMedia = false
