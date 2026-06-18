@@ -204,20 +204,24 @@ class ShortsBlockerService : AccessibilityService() {
                 
                 var isAddictiveMedia = false
 
+                val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
+                val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
+                val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
+
                 // Check event source node if available
                 val eventSource = event.source
                 if (eventSource != null) {
-                    isAddictiveMedia = checkNodeForShortsOrReels(eventSource)
+                    isAddictiveMedia = checkNodeForShortsOrReels(eventSource, blockYT, blockIG, blockSC, 0)
                     try {
                         eventSource.recycle()
                     } catch (e: Exception) { /* ignore */ }
                 }
 
                 // Fallback: check whole visible active window layout hierarchy if the event source did not match
-                if (!isAddictiveMedia) {
-                    val rootNode = rootInActiveWindow
+                if (!isAddictiveMedia && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                    val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
                     if (rootNode != null) {
-                        isAddictiveMedia = checkNodeForShortsOrReels(rootNode)
+                        isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
                         try {
                             rootNode.recycle()
                         } catch (e: Exception) { /* ignore */ }
@@ -255,52 +259,50 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
-    private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+    private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int): Boolean {
         if (node == null || !node.isVisibleToUser) return false
+        if (depth > 25) return false
 
         try {
             val viewId = node.viewIdResourceName ?: ""
-            val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
-            val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
-            val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
             // Ignore bottom navigation bar elements so we don't block normal feeds accidentally
             val isNavElement = viewId.contains("tab") || viewId.contains("nav") || viewId.contains("bottom") || viewId.contains("bar") || viewId.contains("menu") || viewId.contains("icon")
 
-            if (!isNavElement) {
+            if (!isNavElement && viewId.isNotEmpty()) {
                 // Filter YouTube Shorts player elements precisely
-                if (blockYT && (viewId.contains("com.google.android.youtube:id/shorts_player") ||
-                    viewId.contains("com.google.android.youtube:id/shorts_video_player") ||
-                    viewId.contains("com.google.android.youtube:id/reel_recycler") ||
-                    viewId.contains("com.google.android.youtube:id/reel_container") ||
-                    viewId.contains("com.google.android.youtube:id/shorts_container") ||
-                    viewId.contains("com.google.android.youtube:id/player_view_front_interface") ||
-                    viewId.contains("com.google.android.youtube:id/reel_sheet_container") ||
-                    viewId.contains("com.google.android.youtube:id/panel_container"))) {
+                if (blockYT && (viewId.contains("shorts_player") ||
+                    viewId.contains("shorts_video_player") ||
+                    viewId.contains("reel_recycler") ||
+                    viewId.contains("reel_container") ||
+                    viewId.contains("shorts_container") ||
+                    viewId.contains("player_view_front_interface") ||
+                    viewId.contains("reel_sheet_container") ||
+                    viewId.contains("panel_container"))) {
                     return true
                 }
 
                 // Filter Instagram Reels elements precisely
-                if (blockIG && (viewId.contains("com.instagram.android:id/clips_video_container") ||
-                    viewId.contains("com.instagram.android:id/reels_viewer_pager") ||
-                    viewId.contains("com.instagram.android:id/clips_viewer_container") ||
-                    viewId.contains("com.instagram.android:id/reels_video_player_layout") ||
-                    viewId.contains("com.instagram.android:id/clips_post_container") ||
-                    viewId.contains("com.instagram.android:id/clips_layout") ||
-                    viewId.contains("com.instagram.android:id/reels_clip_container") ||
-                    viewId.contains("com.instagram.android:id/clips_viewer_view_pager"))) {
+                if (blockIG && (viewId.contains("clips_video_container") ||
+                    viewId.contains("reels_viewer_pager") ||
+                    viewId.contains("clips_viewer_container") ||
+                    viewId.contains("reels_video_player_layout") ||
+                    viewId.contains("clips_post_container") ||
+                    viewId.contains("clips_layout") ||
+                    viewId.contains("reels_clip_container") ||
+                    viewId.contains("clips_viewer_view_pager"))) {
                     return true
                 }
 
                 // Filter Snapchat Spotlight elements precisely
                 if (blockSC && (
-                    viewId.endsWith(":id/spotlight_video_container") || 
-                    viewId.endsWith(":id/discover_playback") ||
+                    viewId.contains("spotlight_video_container") || 
+                    viewId.contains("discover_playback") ||
                     viewId.contains("spotlight_player") ||
                     viewId.contains("spotlight_video") ||
-                    viewId.endsWith(":id/neon_spotlight_play_view") || 
-                    viewId.endsWith(":id/neon_spotlight_playback_view") ||
-                    viewId.endsWith(":id/spotlight_page_content") ||
+                    viewId.contains("neon_spotlight_play_view") || 
+                    viewId.contains("neon_spotlight_playback_view") ||
+                    viewId.contains("spotlight_page_content") ||
                     (viewId.contains("spotlight") && !viewId.contains("badge") && !viewId.contains("button"))
                 )) {
                     return true
@@ -316,7 +318,7 @@ class ShortsBlockerService : AccessibilityService() {
                     null
                 }
                 if (child != null) {
-                    val found = checkNodeForShortsOrReels(child)
+                    val found = checkNodeForShortsOrReels(child, blockYT, blockIG, blockSC, depth + 1)
                     try {
                         child.recycle()
                     } catch (e: Exception) {
