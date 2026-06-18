@@ -739,6 +739,19 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                         }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        showDeveloperSettings = false
+                        settingsClickCount = 0
+                        sharedPrefs.edit().putBoolean("show_developer_settings", false).apply()
+                        Toast.makeText(context, "Developer Settings Hidden", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Hide Developer Settings")
+                }
             }
 
         }

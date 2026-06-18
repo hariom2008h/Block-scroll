@@ -60,7 +60,7 @@ class ShortsBlockerService : AccessibilityService() {
                             val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                             val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
                             
-                            isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
+                            isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                             if (isWatchingShorts) {
                                 if (currentTime >= lastUnlockTime + sessionCooldownMs) {
                                     val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
@@ -371,8 +371,8 @@ class ShortsBlockerService : AccessibilityService() {
             }
             
             // Debounce intensive checks to prevent ANRs which cause "This service is malfunctioning"
-            // We only throttle the fallback root traversal, not the event source check.
-            val isThrottled = (currentTime - lastProcessTime < THROTTLE_MS)
+            val isUrgentEvent = (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+            val isThrottled = (currentTime - lastProcessTime < 400L)
 
             val eventType = event.eventType
             // Trigger on state change, scroll, or click.
@@ -381,28 +381,32 @@ class ShortsBlockerService : AccessibilityService() {
                 eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
                 eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                 
+                // Throttle noisy events to prevent main thread blocking (ANRs)
+                if (isThrottled && !isUrgentEvent) {
+                    return
+                }
+                lastProcessTime = currentTime
+
                 var isAddictiveMedia = false
 
                 val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
                 val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
-                // Check event source node if available - this is fast, no need to throttle
+                // Check event source node if available
                 val eventSource = event.source
                 if (eventSource != null) {
-                    isAddictiveMedia = checkNodeForShortsOrReels(eventSource, blockYT, blockIG, blockSC, 0)
+                    isAddictiveMedia = checkNodeForShortsOrReels(eventSource, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                     try {
                         eventSource.recycle()
                     } catch (e: Exception) { /* ignore */ }
                 }
 
-                // Fallback: check whole visible active window layout hierarchy if the event source did not match.
-                // We throttle this because rootInActiveWindow can cause ANRs if called too often on CONTENT_CHANGED.
-                if (!isAddictiveMedia && !isThrottled && (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)) {
-                    lastProcessTime = currentTime
+                // Fallback: check whole visible active window layout hierarchy
+                if (!isAddictiveMedia) {
                     val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
                     if (rootNode != null) {
-                        isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0)
+                        isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                         try {
                             rootNode.recycle()
                         } catch (e: Exception) { /* ignore */ }
@@ -440,9 +444,10 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
-    private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int): Boolean {
+    private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int, nodeCount: IntArray): Boolean {
         if (node == null || !node.isVisibleToUser) return false
-        if (depth > 50) return false
+        if (depth > 40 || nodeCount[0] > 1000) return false // Max 40 depth, 1000 nodes total
+        nodeCount[0]++
 
         try {
             val viewId = node.viewIdResourceName ?: ""
@@ -499,7 +504,7 @@ class ShortsBlockerService : AccessibilityService() {
                     null
                 }
                 if (child != null) {
-                    val found = checkNodeForShortsOrReels(child, blockYT, blockIG, blockSC, depth + 1)
+                    val found = checkNodeForShortsOrReels(child, blockYT, blockIG, blockSC, depth + 1, nodeCount)
                     try {
                         child.recycle()
                     } catch (e: Exception) {
