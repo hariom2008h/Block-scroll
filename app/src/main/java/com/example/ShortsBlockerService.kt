@@ -43,6 +43,7 @@ class ShortsBlockerService : AccessibilityService() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
     private var lastUnlockTime = 0L
+    private var lastShortsActivityTime = 0L
     
     private var checkJob: Job? = null
     
@@ -68,6 +69,7 @@ class ShortsBlockerService : AccessibilityService() {
                                 
                                 isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                                 if (isWatchingShorts) {
+                                    lastShortsActivityTime = currentTime
                                     if (currentTime >= lastUnlockTime + sessionCooldownMs) {
                                         val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                                         val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
@@ -84,8 +86,7 @@ class ShortsBlockerService : AccessibilityService() {
                                         
                                         if (isStrictMode) {
                                             lastBackNavigationTime = System.currentTimeMillis()
-                                            // UI Calls must be main safe, which redirectToSafeFeed and showFrictionOverlay handle via Handlers
-                                            redirectToSafeFeed()
+                                            mainHandler.post { redirectToSafeFeed() }
                                         } else {
                                             showFrictionOverlay()
                                         }
@@ -97,15 +98,18 @@ class ShortsBlockerService : AccessibilityService() {
                             } catch (e: Exception) {}
                         }
                         
+                        // Treat as watching if detected within last 3 seconds
+                        val effectivelyWatching = isWatchingShorts || (currentTime - lastShortsActivityTime < 3000L)
+                        
                         val enableFloatingTimer = sharedPreferences?.getBoolean("enable_floating_timer", false) ?: false
                         
-                        if (enableFloatingTimer && isWatchingShorts && currentTime < lastUnlockTime + sessionCooldownMs) {
+                        if (enableFloatingTimer && effectivelyWatching && currentTime < lastUnlockTime + sessionCooldownMs) {
                             showOrUpdateProgressOverlay(lastUnlockTime + sessionCooldownMs - currentTime)
                         } else {
                             removeProgressOverlay()
                         }
                         
-                        if (isWatchingShorts) {
+                        if (effectivelyWatching) {
                             partialWakeLock?.acquire(3 * 60 * 1000L)
                         } else {
                             if (partialWakeLock?.isHeld == true) {
@@ -360,48 +364,6 @@ class ShortsBlockerService : AccessibilityService() {
             }
             lastProcessTime = currentTime
 
-            // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
-            val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
-            if (activeRoot != null) {
-                val activePackage = activeRoot.packageName?.toString() ?: ""
-                try { activeRoot.recycle() } catch (e: Exception) {}
-                
-                if (activePackage.isNotEmpty()) {
-                    val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
-                    val isOurAppActive = activePackage == this.packageName
-                    val isSystemRoot = activePackage == "com.android.systemui" || activePackage == "android"
-                    val isKeyboardRoot = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
-
-                    // If user is in a completely different app, remove overlay safely
-                    if (!isTargetActive && !isOurAppActive && !isSystemRoot && !isKeyboardRoot) {
-                        if (isOverlayShowing) {
-                            removeFrictionOverlay()
-                        }
-                        return
-                    }
-                }
-            }
-
-            // 2. Filter accessibility events only for our targets
-            val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
-
-            if (!isTargetEvent) {
-                return
-            }
-
-            // If user recently entered the correct password, do not show lock overlay during cooldown period
-            val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
-            val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
-            
-            if (currentTime < lastUnlockTime + sessionCooldownMs) {
-                return
-            }
-
-            // If user recently pressed "Go Back", wait for UI to exit shorts before checking again
-            if (currentTime < lastBackNavigationTime + BACK_NAVIGATION_COOLDOWN_MS) {
-                return
-            }
-            
             // Trigger on state change, scroll, or click.
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
@@ -418,6 +380,36 @@ class ShortsBlockerService : AccessibilityService() {
                 
                 serviceScope.launch {
                     try {
+                        // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
+                        val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
+                        if (activeRoot != null) {
+                            val activePackage = activeRoot.packageName?.toString() ?: ""
+                            
+                            if (activePackage.isNotEmpty()) {
+                                val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
+                                val isOurAppActive = activePackage == this@ShortsBlockerService.packageName
+                                val isSystemRoot = activePackage == "com.android.systemui" || activePackage == "android"
+                                val isKeyboardRoot = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
+
+                                // If user is in a completely different app, remove overlay safely
+                                if (!isTargetActive && !isOurAppActive && !isSystemRoot && !isKeyboardRoot) {
+                                    if (isOverlayShowing) {
+                                        mainHandler.post { removeFrictionOverlay() }
+                                    }
+                                    try { activeRoot.recycle() } catch (e: Exception) {}
+                                    return@launch
+                                }
+                            }
+                            try { activeRoot.recycle() } catch (e: Exception) {}
+                        }
+
+                        // Filter accessibility events only for our targets
+                        val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
+
+                        if (!isTargetEvent) {
+                            return@launch
+                        }
+
                         var isAddictiveMedia = safeSourceNode?.let {
                             checkNodeForShortsOrReels(it, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                         } ?: false
@@ -434,6 +426,8 @@ class ShortsBlockerService : AccessibilityService() {
                         }
 
                         if (isAddictiveMedia) {
+                            val currentTimeMs = System.currentTimeMillis()
+                            lastShortsActivityTime = currentTimeMs
                             val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                             val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
                             val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
@@ -447,11 +441,20 @@ class ShortsBlockerService : AccessibilityService() {
                             
                             lastBlockedPackage = packageName
                             
-                            if (isStrictMode) {
-                                lastBackNavigationTime = System.currentTimeMillis()
-                                redirectToSafeFeed()
-                            } else {
-                                showFrictionOverlay()
+                            val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
+                            val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
+                            
+                            if (currentTimeMs >= lastUnlockTime + sessionCooldownMs) {
+                                if (currentTimeMs < lastBackNavigationTime + BACK_NAVIGATION_COOLDOWN_MS) {
+                                    return@launch
+                                }
+                                
+                                if (isStrictMode) {
+                                    lastBackNavigationTime = currentTimeMs
+                                    mainHandler.post { redirectToSafeFeed() }
+                                } else {
+                                    showFrictionOverlay()
+                                }
                             }
                         } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                             // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
@@ -472,7 +475,7 @@ class ShortsBlockerService : AccessibilityService() {
 
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int, nodeCount: IntArray): Boolean {
         if (node == null || !node.isVisibleToUser) return false
-        if (depth > 15 || nodeCount[0] > 150) return false // Strictly limit to prevent ANR
+        if (depth > 40 || nodeCount[0] > 1000) return false // Max 40 depth, 1000 nodes
         nodeCount[0]++
 
         try {
