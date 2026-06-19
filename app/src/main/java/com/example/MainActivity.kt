@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
       var missingOverlay by remember { mutableStateOf(false) }
       var missingAccessibility by remember { mutableStateOf(false) }
       var missingNotification by remember { mutableStateOf(false) }
+      var missingBattery by remember { mutableStateOf(false) }
 
       DisposableEffect(lifecycleOwner) {
           val observer = LifecycleEventObserver { _, event ->
@@ -107,6 +108,11 @@ class MainActivity : ComponentActivity() {
                   } else {
                       missingNotification = false
                   }
+                  
+                  if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                      val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                      missingBattery = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+                  }
               }
           }
           lifecycleOwner.lifecycle.addObserver(observer)
@@ -117,7 +123,7 @@ class MainActivity : ComponentActivity() {
 
       val isFirstLaunch = sharedPrefs.getBoolean("is_first_launch", true)
       
-      if (!isFirstLaunch && (missingOverlay || missingAccessibility || missingNotification)) {
+      if (!isFirstLaunch && (missingOverlay || missingAccessibility || missingNotification || missingBattery)) {
           AlertDialog(
               onDismissRequest = { },
               title = { Text("Permissions Required") },
@@ -128,6 +134,7 @@ class MainActivity : ComponentActivity() {
                       if (missingNotification) Text("• Notifications", fontWeight = FontWeight.Bold)
                       if (missingOverlay) Text("• Display over other apps", fontWeight = FontWeight.Bold)
                       if (missingAccessibility) Text("• Accessibility service", fontWeight = FontWeight.Bold)
+                      if (missingBattery) Text("• Unrestricted battery access (Run in background)", fontWeight = FontWeight.Bold)
                       Spacer(modifier = Modifier.height(16.dp))
                       Text("Please click below to restore them.", style = MaterialTheme.typography.bodyMedium)
                   }
@@ -158,6 +165,16 @@ class MainActivity : ComponentActivity() {
                                val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                                context.startActivity(intent)
                            }) { Text("Fix Accessibility") }
+                      }
+                      if (missingBattery) {
+                          TextButton(onClick = {
+                              try {
+                                  val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                      data = android.net.Uri.parse("package:${context.packageName}")
+                                  }
+                                  context.startActivity(intent)
+                              } catch (e: Exception) {}
+                          }) { Text("Fix Background Running") }
                       }
                   }
               }

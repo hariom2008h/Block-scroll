@@ -375,9 +375,6 @@ class ShortsBlockerService : AccessibilityService() {
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
                 // Handle layout traversal on a background thread to prevent ANRs.
-                // We must grab event.source synchronously before the event is recycled by Android.
-                val safeSourceNode = try { event.source } catch (e: Exception) { null }
-                
                 serviceScope.launch {
                     try {
                         // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
@@ -400,28 +397,29 @@ class ShortsBlockerService : AccessibilityService() {
                                     return@launch
                                 }
                             }
-                            try { activeRoot.recycle() } catch (e: Exception) {}
                         }
 
                         // Filter accessibility events only for our targets
                         val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
 
                         if (!isTargetEvent) {
+                            try { activeRoot?.recycle() } catch (e: Exception) {}
                             return@launch
                         }
 
-                        var isAddictiveMedia = safeSourceNode?.let {
-                            checkNodeForShortsOrReels(it, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
-                        } ?: false
+                        var isAddictiveMedia = false
 
-                        // Fallback: check whole visible active window layout hierarchy
-                        if (!isAddictiveMedia) {
-                            val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
-                            if (rootNode != null) {
-                                isAddictiveMedia = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
-                                try {
-                                    rootNode.recycle()
-                                } catch (e: Exception) { /* ignore */ }
+                        // Check whole visible active window layout hierarchy
+                        if (activeRoot != null) {
+                            isAddictiveMedia = checkNodeForShortsOrReels(activeRoot, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                            try {
+                                activeRoot.recycle()
+                            } catch (e: Exception) { /* ignore */ }
+                        } else {
+                            val backupRoot = try { rootInActiveWindow } catch (e: Exception) { null }
+                            if (backupRoot != null) {
+                                isAddictiveMedia = checkNodeForShortsOrReels(backupRoot, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                                try { backupRoot.recycle() } catch (e: Exception) {}
                             }
                         }
 
@@ -463,8 +461,6 @@ class ShortsBlockerService : AccessibilityService() {
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                    } finally {
-                        try { safeSourceNode?.recycle() } catch (e:Exception){}
                     }
                 }
             }
@@ -828,6 +824,7 @@ class ShortsBlockerService : AccessibilityService() {
     
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         removeFrictionOverlay()
         if (partialWakeLock?.isHeld == true) {
             partialWakeLock?.release()
