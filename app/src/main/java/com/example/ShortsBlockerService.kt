@@ -341,6 +341,24 @@ class ShortsBlockerService : AccessibilityService() {
 
         try {
             val packageName = event.packageName?.toString() ?: ""
+            val eventType = event.eventType
+
+            val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
+            val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
+
+            if (isSystemApp || isKeyboard) {
+                return
+            }
+
+            // Quick throttling before doing heavy IPC like rootInActiveWindow
+            val currentTime = System.currentTimeMillis()
+            val isUrgentEvent = (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || eventType == AccessibilityEvent.TYPE_VIEW_CLICKED)
+            val isThrottled = (currentTime - lastProcessTime < 400L)
+
+            if (!isUrgentEvent && isThrottled) {
+                return
+            }
+            lastProcessTime = currentTime
 
             // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
             val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
@@ -351,11 +369,11 @@ class ShortsBlockerService : AccessibilityService() {
                 if (activePackage.isNotEmpty()) {
                     val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
                     val isOurAppActive = activePackage == this.packageName
-                    val isSystemActive = activePackage == "com.android.systemui" || activePackage == "android" 
-                    val isKeyboardActive = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
+                    val isSystemRoot = activePackage == "com.android.systemui" || activePackage == "android"
+                    val isKeyboardRoot = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
 
                     // If user is in a completely different app, remove overlay safely
-                    if (!isTargetActive && !isOurAppActive && !isSystemActive && !isKeyboardActive) {
+                    if (!isTargetActive && !isOurAppActive && !isSystemRoot && !isKeyboardRoot) {
                         if (isOverlayShowing) {
                             removeFrictionOverlay()
                         }
@@ -366,20 +384,12 @@ class ShortsBlockerService : AccessibilityService() {
 
             // 2. Filter accessibility events only for our targets
             val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
-            val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
-            val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
-
-            if (isSystemApp || isKeyboard) {
-                // Ignore background system UI events
-                return
-            }
 
             if (!isTargetEvent) {
                 return
             }
 
             // If user recently entered the correct password, do not show lock overlay during cooldown period
-            val currentTime = System.currentTimeMillis()
             val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
             val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
             
@@ -392,22 +402,11 @@ class ShortsBlockerService : AccessibilityService() {
                 return
             }
             
-            // Debounce intensive checks to prevent ANRs which cause "This service is malfunctioning"
-            val isUrgentEvent = (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
-            val isThrottled = (currentTime - lastProcessTime < 400L)
-
-            val eventType = event.eventType
             // Trigger on state change, scroll, or click.
             if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
                 eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
                 eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-                
-                // Throttle noisy events to prevent main thread blocking (ANRs)
-                if (isThrottled && !isUrgentEvent) {
-                    return
-                }
-                lastProcessTime = currentTime
                 
                 val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
                 val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
