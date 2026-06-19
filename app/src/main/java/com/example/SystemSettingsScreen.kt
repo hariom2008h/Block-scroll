@@ -186,25 +186,26 @@ fun ShortsBlockerSystemSettingsScreen(
             Text("Appearance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Dynamic Color", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        text = "Use Android 12+ wallpaper-based colors",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Dynamic Color", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Use Android 12+ wallpaper-based colors",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = useDynamicColor,
+                        onCheckedChange = { onDynamicColorChange(it) }
                     )
                 }
-                Switch(
-                    checked = useDynamicColor,
-                    onCheckedChange = { onDynamicColorChange(it) }
-                )
+                Spacer(modifier = Modifier.height(12.dp))
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
             
             Text("Theme Mode", style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(8.dp))
