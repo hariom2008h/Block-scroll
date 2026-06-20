@@ -46,6 +46,7 @@ class ShortsBlockerService : AccessibilityService() {
     private var lastShortsActivityTime = 0L
     
     private var checkJob: Job? = null
+    private val checkMutex = kotlinx.coroutines.sync.Mutex()
     
     private fun startPeriodicCheck() {
         checkJob?.cancel()
@@ -57,63 +58,69 @@ class ShortsBlockerService : AccessibilityService() {
                         val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
                         val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
                         
-                        val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
-                        var isWatchingShorts = false
-                        
-                        if (rootNode != null) {
-                            val packageName = rootNode.packageName?.toString() ?: ""
-                            if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
-                                val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
-                                val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
-                                val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
-                                
-                                isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
-                                if (isWatchingShorts) {
-                                    lastShortsActivityTime = currentTime
-                                    if (currentTime >= lastUnlockTime + sessionCooldownMs) {
-                                        val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
-                                        val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
-                                        val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
+                        // Use tryLock instead of suspending to avoid stalling the loop if onAccessibilityEvent is checking
+                        if (checkMutex.tryLock()) {
+                            var isWatchingShorts = false
+                            try {
+                                val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
+                                if (rootNode != null) {
+                                    val packageName = rootNode.packageName?.toString() ?: ""
+                                    if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
+                                        val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
+                                        val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
+                                        val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
                                         
-                                        val isStrictMode = when {
-                                            packageName.contains("youtube") -> strictModeYT
-                                            packageName.contains("instagram") -> strictModeIG
-                                            packageName.contains("snapchat") -> strictModeSC
-                                            else -> false
-                                        }
-                                        
-                                        lastBlockedPackage = packageName
-                                        
-                                        if (isStrictMode) {
-                                            lastBackNavigationTime = System.currentTimeMillis()
-                                            mainHandler.post { redirectToSafeFeed() }
-                                        } else {
-                                            showFrictionOverlay()
+                                        isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
+                                        if (isWatchingShorts) {
+                                            lastShortsActivityTime = currentTime
+                                            if (currentTime >= lastUnlockTime + sessionCooldownMs) {
+                                                val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
+                                                val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
+                                                val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
+                                                
+                                                val isStrictMode = when {
+                                                    packageName.contains("youtube") -> strictModeYT
+                                                    packageName.contains("instagram") -> strictModeIG
+                                                    packageName.contains("snapchat") -> strictModeSC
+                                                    else -> false
+                                                }
+                                                
+                                                lastBlockedPackage = packageName
+                                                
+                                                if (isStrictMode) {
+                                                    lastBackNavigationTime = System.currentTimeMillis()
+                                                    mainHandler.post { redirectToSafeFeed() }
+                                                } else {
+                                                    showFrictionOverlay()
+                                                }
+                                            }
                                         }
                                     }
+                                    try {
+                                        rootNode.recycle()
+                                    } catch (e: Exception) {}
                                 }
+                            } finally {
+                                checkMutex.unlock()
                             }
-                            try {
-                                rootNode.recycle()
-                            } catch (e: Exception) {}
-                        }
-                        
-                        // Treat as watching if detected within last 3 seconds
-                        val effectivelyWatching = isWatchingShorts || (currentTime - lastShortsActivityTime < 3000L)
-                        
-                        val enableFloatingTimer = sharedPreferences?.getBoolean("enable_floating_timer", false) ?: false
-                        
-                        if (enableFloatingTimer && effectivelyWatching && currentTime < lastUnlockTime + sessionCooldownMs) {
-                            showOrUpdateProgressOverlay(lastUnlockTime + sessionCooldownMs - currentTime)
-                        } else {
-                            removeProgressOverlay()
-                        }
-                        
-                        if (effectivelyWatching) {
-                            partialWakeLock?.acquire(3 * 60 * 1000L)
-                        } else {
-                            if (partialWakeLock?.isHeld == true) {
-                                partialWakeLock?.release()
+                            
+                            // Treat as watching if detected within last 3 seconds
+                            val effectivelyWatching = isWatchingShorts || (currentTime - lastShortsActivityTime < 3000L)
+                            
+                            val enableFloatingTimer = sharedPreferences?.getBoolean("enable_floating_timer", false) ?: false
+                            
+                            if (enableFloatingTimer && effectivelyWatching && currentTime < lastUnlockTime + sessionCooldownMs) {
+                                showOrUpdateProgressOverlay(lastUnlockTime + sessionCooldownMs - currentTime)
+                            } else {
+                                removeProgressOverlay()
+                            }
+                            
+                            if (effectivelyWatching) {
+                                partialWakeLock?.acquire(3 * 60 * 1000L)
+                            } else {
+                                if (partialWakeLock?.isHeld == true) {
+                                    partialWakeLock?.release()
+                                }
                             }
                         }
                     } else {
@@ -375,6 +382,9 @@ class ShortsBlockerService : AccessibilityService() {
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
                 // Handle layout traversal on a background thread to prevent ANRs.
+                if (!checkMutex.tryLock()) {
+                    return
+                }
                 serviceScope.launch {
                     try {
                         // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
@@ -461,6 +471,8 @@ class ShortsBlockerService : AccessibilityService() {
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
+                    } finally {
+                        checkMutex.unlock()
                     }
                 }
             }
