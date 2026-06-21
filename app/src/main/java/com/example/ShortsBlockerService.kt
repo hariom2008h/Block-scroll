@@ -46,7 +46,7 @@ class ShortsBlockerService : AccessibilityService() {
     private var lastShortsActivityTime = 0L
     
     private var checkJob: Job? = null
-    private val checkMutex = kotlinx.coroutines.sync.Mutex()
+    private val isChecking = java.util.concurrent.atomic.AtomicBoolean(false)
     
     private fun startPeriodicCheck() {
         checkJob?.cancel()
@@ -58,8 +58,8 @@ class ShortsBlockerService : AccessibilityService() {
                         val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
                         val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
                         
-                        // Use tryLock instead of suspending to avoid stalling the loop if onAccessibilityEvent is checking
-                        if (checkMutex.tryLock()) {
+                        // Use atomic compareAndSet to avoid stalling the loop if onAccessibilityEvent is checking
+                        if (isChecking.compareAndSet(false, true)) {
                             var isWatchingShorts = false
                             try {
                                 val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
@@ -101,7 +101,7 @@ class ShortsBlockerService : AccessibilityService() {
                                     } catch (e: Exception) {}
                                 }
                             } finally {
-                                checkMutex.unlock()
+                                isChecking.set(false)
                             }
                             
                             // Treat as watching if detected within last 3 seconds
@@ -297,6 +297,19 @@ class ShortsBlockerService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        checkJob?.cancel()
+        serviceScope.cancel()
+        if (partialWakeLock?.isHeld == true) {
+            try {
+                partialWakeLock?.release()
+            } catch (e: Exception) {}
+        }
+        removeFrictionOverlay()
+        removeProgressOverlay()
+    }
+
     private fun requestAudioFocusToPauseMedia() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -382,7 +395,7 @@ class ShortsBlockerService : AccessibilityService() {
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
 
                 // Handle layout traversal on a background thread to prevent ANRs.
-                if (!checkMutex.tryLock()) {
+                if (!isChecking.compareAndSet(false, true)) {
                     return
                 }
                 serviceScope.launch {
@@ -472,7 +485,7 @@ class ShortsBlockerService : AccessibilityService() {
                     } catch (e: Exception) {
                         e.printStackTrace()
                     } finally {
-                        checkMutex.unlock()
+                        isChecking.set(false)
                     }
                 }
             }
@@ -832,14 +845,5 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onInterrupt() {
         removeFrictionOverlay()
-    }
-    
-    override fun onDestroy() {
-        super.onDestroy()
-        serviceScope.cancel()
-        removeFrictionOverlay()
-        if (partialWakeLock?.isHeld == true) {
-            partialWakeLock?.release()
-        }
     }
 }
