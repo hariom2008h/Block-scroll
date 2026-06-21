@@ -51,8 +51,14 @@ class ShortsBlockerService : AccessibilityService() {
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             while(isActive) {
                 try {
+                    if (!powerManager.isInteractive) {
+                        removeProgressOverlay()
+                        delay(5000L) // Sleep longer if screen is off
+                        continue
+                    }
                     if (!isOverlayShowing) {
                         val currentTime = System.currentTimeMillis()
                         val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
@@ -114,24 +120,16 @@ class ShortsBlockerService : AccessibilityService() {
                             } else {
                                 removeProgressOverlay()
                             }
-                            
-                            if (effectivelyWatching) {
-                                partialWakeLock?.acquire(3 * 60 * 1000L)
-                            } else {
-                                if (partialWakeLock?.isHeld == true) {
-                                    partialWakeLock?.release()
-                                }
-                            }
                         }
                     } else {
                         removeProgressOverlay()
-                        partialWakeLock?.acquire(3 * 60 * 1000L)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
                 
-                delay(1000L) // Wait before next iteration
+                // Increase polling interval to save battery, as onAccessibilityEvent covers state changes
+                delay(2000L) 
             }
         }
     }
@@ -246,15 +244,10 @@ class ShortsBlockerService : AccessibilityService() {
     private var lastBlockedPackage = ""
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
-    private var partialWakeLock: PowerManager.WakeLock? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            partialWakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ShortsBlocker:WakeLock")
-            partialWakeLock?.setReferenceCounted(false)
-            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     "shorts_blocker_channel",
@@ -301,11 +294,6 @@ class ShortsBlockerService : AccessibilityService() {
         super.onDestroy()
         checkJob?.cancel()
         serviceScope.cancel()
-        if (partialWakeLock?.isHeld == true) {
-            try {
-                partialWakeLock?.release()
-            } catch (e: Exception) {}
-        }
         removeFrictionOverlay()
         removeProgressOverlay()
     }

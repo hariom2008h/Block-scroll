@@ -232,9 +232,9 @@ fun ShortsBlockerSystemSettingsScreen(
                                                 val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                                                 context.startActivity(intent)
                                             } catch (e2: Exception) {
-                                                Toast.makeText(context, "Please allow Auto Start in Apps manually", Toast.LENGTH_LONG).show()
                                             }
                                         }
+                                        openAutoStartSettings(context)
                                     },
                                 ) {
                                     Text("Fix")
@@ -832,6 +832,32 @@ suspend fun sendFeedbackToTelegram(feedback: String): Boolean {
             e.printStackTrace()
             false
         }
+    }
+}
+
+fun openAutoStartSettings(context: Context) {
+    try {
+        val intents = arrayOf(
+            Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+            Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
+            Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity")),
+            Intent().setComponent(android.content.ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity")),
+            Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
+            Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")),
+            Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")),
+            Intent().setComponent(android.content.ComponentName("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity")),
+            Intent().setComponent(android.content.ComponentName("com.asus.mobilemanager", "com.asus.mobilemanager.entry.FunctionActivity"))
+        )
+        for (intent in intents) {
+            if (context.packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY) != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return
+            }
+        }
+        Toast.makeText(context, "Please allow Auto Start in App Settings manually", Toast.LENGTH_LONG).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "Please allow Auto Start in App Settings manually", Toast.LENGTH_LONG).show()
     }
 }
 
