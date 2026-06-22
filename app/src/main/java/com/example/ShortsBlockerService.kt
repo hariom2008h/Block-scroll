@@ -302,8 +302,14 @@ class ShortsBlockerService : AccessibilityService() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (audioFocusRequest == null) {
-                    audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                    audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                         .setOnAudioFocusChangeListener { }
+                        .setAudioAttributes(
+                            android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build()
+                        )
                         .build()
                 }
                 audioManager?.requestAudioFocus(audioFocusRequest!!)
@@ -312,14 +318,24 @@ class ShortsBlockerService : AccessibilityService() {
                 audioManager?.requestAudioFocus(
                     { },
                     AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+                    AudioManager.AUDIOFOCUS_GAIN
                 )
             }
             
+            // Dispatch Pause
             val downEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE)
             audioManager?.dispatchMediaKeyEvent(downEvent)
             val upEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE)
             audioManager?.dispatchMediaKeyEvent(upEvent)
+            
+            // Dispatch Stop as a fallback
+            val downStop = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP)
+            audioManager?.dispatchMediaKeyEvent(downStop)
+            val upStop = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_STOP)
+            audioManager?.dispatchMediaKeyEvent(upStop)
+
+            // Temporarily mute to assure the user feels it's stopped
+            audioManager?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -336,10 +352,14 @@ class ShortsBlockerService : AccessibilityService() {
                 audioManager?.abandonAudioFocus { }
             }
             
+            // Dispatch Play
             val downEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY)
             audioManager?.dispatchMediaKeyEvent(downEvent)
             val upEvent = KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY)
             audioManager?.dispatchMediaKeyEvent(upEvent)
+
+            // Unmute
+            audioManager?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
         } catch (e: Exception) {
             e.printStackTrace()
         }
