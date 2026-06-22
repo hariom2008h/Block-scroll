@@ -7,7 +7,12 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,12 +22,14 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.HelpOutline
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -67,8 +75,15 @@ fun ShortsBlockerSystemSettingsScreen(
 
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
+    var feedbackImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var isSendingFeedback by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5)
+    ) { uris ->
+        feedbackImages = uris
+    }
 
     Column(
         modifier = modifier
@@ -544,12 +559,13 @@ fun ShortsBlockerSystemSettingsScreen(
 
             var showPolicyDialog by remember { mutableStateOf(false) }
             var showAboutDialog by remember { mutableStateOf(false) }
+            var showHelpScreen by remember { mutableStateOf(false) }
 
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 SettingsListItem(
-                    icon = Icons.Rounded.HelpOutline,
-                    title = "Help",
-                    onClick = { /* TODO: Implement Help */ }
+                    icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                    title = "Help & FAQs",
+                    onClick = { showHelpScreen = true }
                 )
                 SettingsListItem(
                     icon = Icons.Rounded.Description,
@@ -586,23 +602,28 @@ fun ShortsBlockerSystemSettingsScreen(
             }
 
             if (showAboutDialog) {
-                AlertDialog(
+                val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
+                androidx.compose.ui.window.Dialog(
                     onDismissRequest = { showAboutDialog = false },
-                    title = { Text("About Shorts Blocker") },
-                    text = {
-                        Column {
-                            val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
-                            Text("Shorts Blocker helps you reclaim your time and focus by preventing doomscrolling on addictive social media platforms.")
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Version: v$currentVersion", fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showAboutDialog = false }) {
-                            Text("Close")
-                        }
-                    }
-                )
+                    properties = androidx.compose.ui.window.DialogProperties(
+                        usePlatformDefaultWidth = false,
+                        decorFitsSystemWindows = false
+                    )
+                ) {
+                    AboutScreen(currentVersion = currentVersion, onNavigateBack = { showAboutDialog = false })
+                }
+            }
+
+            if (showHelpScreen) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showHelpScreen = false },
+                    properties = androidx.compose.ui.window.DialogProperties(
+                        usePlatformDefaultWidth = false,
+                        decorFitsSystemWindows = false
+                    )
+                ) {
+                    HelpFAQScreen(onNavigateBack = { showHelpScreen = false })
+                }
             }
 
             if (showFeedbackDialog) {
@@ -620,18 +641,42 @@ fun ShortsBlockerSystemSettingsScreen(
                                 maxLines = 5,
                                 placeholder = { Text("Enter your feedback here...") }
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(
+                                    onClick = {
+                                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                    }
+                                ) {
+                                    Text("Add Screenshots (${feedbackImages.size}/5)")
+                                }
+                            }
+                            if (feedbackImages.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    items(feedbackImages.size) { index ->
+                                        Box(
+                                            modifier = Modifier.size(50.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("Img ${index+1}", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
                     confirmButton = {
                         Button(
                             onClick = {
-                                if (feedbackText.isNotBlank()) {
+                                if (feedbackText.isNotBlank() || feedbackImages.isNotEmpty()) {
                                     isSendingFeedback = true
                                     coroutineScope.launch {
-                                        val success = sendFeedbackToTelegram(feedbackText)
+                                        val success = sendFeedbackToTelegram(context, feedbackText, feedbackImages)
                                         isSendingFeedback = false
                                         showFeedbackDialog = false
                                         feedbackText = ""
+                                        feedbackImages = emptyList()
                                         if (success) {
                                             Toast.makeText(context, "फीडबैक के लिए धन्यवाद!", Toast.LENGTH_SHORT).show()
                                         } else {
@@ -640,7 +685,7 @@ fun ShortsBlockerSystemSettingsScreen(
                                     }
                                 }
                             },
-                            enabled = !isSendingFeedback && feedbackText.isNotBlank()
+                            enabled = !isSendingFeedback && (feedbackText.isNotBlank() || feedbackImages.isNotEmpty())
                         ) {
                             if (isSendingFeedback) {
                                 CircularProgressIndicator(
@@ -669,84 +714,35 @@ fun ShortsBlockerSystemSettingsScreen(
     }
 
     showUpdateDialog?.let { updateInfo ->
-        AlertDialog(
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = { showUpdateDialog = null },
-            title = {
-                Text(
-                    text = "Update Available (v${updateInfo.latestVersion})",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = "A new version of Shorts Blocker is ready. Would you like to download and install it?",
-                        style = MaterialTheme.typography.bodyMedium
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            UpdateDetailsScreen(
+                updateInfo = updateInfo,
+                onNavigateBack = { showUpdateDialog = null },
+                onDownload = {
+                    downloadError = null
+                    downloadProgress = 0
+                    UpdateChecker.downloadAndInstallApk(
+                        context = context,
+                        downloadUrl = updateInfo.downloadUrl,
+                        onProgress = { progress ->
+                            downloadProgress = progress
+                        },
+                        onError = { err ->
+                            downloadProgress = null
+                            downloadError = err
+                        }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Current: v${updateInfo.currentVersion} → Latest: v${updateInfo.latestVersion}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Release Notes:",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = updateInfo.releaseNotes,
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showUpdateDialog = null
-                        downloadError = null
-                        downloadProgress = 0
-                        UpdateChecker.downloadAndInstallApk(
-                            context = context,
-                            downloadUrl = updateInfo.downloadUrl,
-                            onProgress = { progress ->
-                                downloadProgress = progress
-                            },
-                            onError = { err ->
-                                downloadProgress = null
-                                downloadError = err
-                            }
-                        )
-                    }
-                ) {
-                    Text("Download & Install")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUpdateDialog = null }) {
-                    Text("Remind Me Later")
-                }
-            }
-        )
+                },
+                downloadProgress = downloadProgress,
+                downloadError = downloadError
+            )
+        }
     }
 }
 
@@ -781,7 +777,7 @@ fun SettingsListItem(
     }
 }
 
-suspend fun sendFeedbackToTelegram(feedback: String): Boolean {
+suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris: List<Uri>): Boolean {
     return withContext(Dispatchers.IO) {
         try {
             val token = BuildConfig.TELEGRAM_BOT_TOKEN
@@ -810,6 +806,8 @@ suspend fun sendFeedbackToTelegram(feedback: String): Boolean {
 
                 📝 **Message:**
                 "$feedback"
+                
+                📎 **Attachments:** ${imageUris.size}
                 -----------------------------
             """.trimIndent()
             
@@ -825,9 +823,40 @@ suspend fun sendFeedbackToTelegram(feedback: String): Boolean {
                 .post(body)
                 .build()
                 
+            var textSuccess = false    
             client.newCall(request).execute().use { response ->
-                response.isSuccessful
+                textSuccess = response.isSuccessful
             }
+            
+            var imagesSuccess = true
+            for (uri in imageUris) {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val bytes = inputStream?.readBytes()
+                    inputStream?.close()
+                    if (bytes != null) {
+                        val requestBody = MultipartBody.Builder()
+                            .setType(MultipartBody.FORM)
+                            .addFormDataPart("chat_id", chatId)
+                            .addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
+                            .build()
+                        val photoRequest = Request.Builder()
+                            .url("https://api.telegram.org/bot$token/sendPhoto")
+                            .post(requestBody)
+                            .build()
+                        client.newCall(photoRequest).execute().use { photoResponse ->
+                            if (!photoResponse.isSuccessful) {
+                                imagesSuccess = false
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    imagesSuccess = false
+                }
+            }
+            
+            textSuccess && (imageUris.isEmpty() || imagesSuccess)
         } catch (e: Exception) {
             e.printStackTrace()
             false
@@ -861,3 +890,262 @@ fun openAutoStartSettings(context: Context) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HelpFAQScreen(onNavigateBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Help & FAQs") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                FAQItem("How does this app block Shorts?", "The app uses Android's Accessibility Services to detect when you open a short-form video feed (like YouTube Shorts or Instagram Reels) and displays a blocking overlay.")
+            }
+            item {
+                FAQItem("Why do I need to enable Accessibility?", "We need Accessibility permissions to detect which screen of an app you are on without accessing your personal data. This is strictly locally processed.")
+            }
+            item {
+                FAQItem("What does 'Auto Start / Battery' permission do?", "Many device manufacturers kill background apps to save battery. Giving Auto Start and Battery unrestricted access ensures the blocker service stays running in the background so it can block seamlessly when needed.")
+            }
+            item {
+                FAQItem("How can I pause the blocker?", "You can change your session settings and duration in the app's home screen. The app does not completely limit usage but enforces a mindful cooldown time.")
+            }
+            item {
+                FAQItem("Will my data be sent to a server?", "No, all processing happens locally on your device. We respect your privacy and do not transmit your screen content or activity.")
+            }
+        }
+    }
+}
+
+@Composable
+fun FAQItem(question: String, answer: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        onClick = { expanded = !expanded },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = question,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = "Expand",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            if (expanded) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = answer,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun HtmlText(html: String, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    androidx.compose.ui.viewinterop.AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            android.widget.TextView(context).apply {
+                movementMethod = android.text.method.LinkMovementMethod.getInstance()
+                // Use Material 3 onSurfaceVariant text color
+                setTextColor(color.toArgb())
+            }
+        },
+        update = { 
+            it.setTextColor(color.toArgb())
+            it.text = androidx.core.text.HtmlCompat.fromHtml(html, androidx.core.text.HtmlCompat.FROM_HTML_MODE_COMPACT) 
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AboutScreen(currentVersion: String, onNavigateBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("About Shorts Blocker") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(innerPadding)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Shield,
+                contentDescription = null,
+                modifier = Modifier.size(100.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Shorts Blocker",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Version: v$currentVersion",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = "Shorts Blocker helps you reclaim your time and focus by preventing doomscrolling on addictive social media platforms.",
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UpdateDetailsScreen(
+    updateInfo: UpdateResult.NewVersionAvailable,
+    onNavigateBack: () -> Unit,
+    onDownload: () -> Unit,
+    downloadProgress: Int?,
+    downloadError: String?
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Update Available") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(innerPadding)
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "A new version is ready!",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Current: v${updateInfo.currentVersion}  →  Latest: v${updateInfo.latestVersion}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Release Notes:",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    HtmlText(
+                        html = updateInfo.releaseNotes,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    )
+                }
+                
+                if (downloadError != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Error: $downloadError",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+            
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    if (downloadProgress != null) {
+                        Text(
+                            text = if (downloadProgress == 100) "Download complete. Starting install..." else "Downloading: $downloadProgress%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        LinearProgressIndicator(
+                            progress = { downloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Button(
+                            onClick = onDownload,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Download & Install", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
