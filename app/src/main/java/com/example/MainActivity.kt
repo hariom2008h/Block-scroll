@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
       var missingAccessibility by remember { mutableStateOf(false) }
       var missingNotification by remember { mutableStateOf(false) }
       var missingBattery by remember { mutableStateOf(false) }
+      var missingUsageStats by remember { mutableStateOf(false) }
 
       DisposableEffect(lifecycleOwner) {
           val observer = LifecycleEventObserver { _, event ->
@@ -99,6 +100,19 @@ class MainActivity : ComponentActivity() {
                   missingOverlay = !android.provider.Settings.canDrawOverlays(context)
                   val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
                   missingAccessibility = enabledServices?.contains(context.packageName) != true
+                  
+                  val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+                  val mode = appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+                  missingUsageStats = mode != android.app.AppOpsManager.MODE_ALLOWED
+
+                  if (!missingUsageStats && !missingOverlay) {
+                      val serviceIntent = Intent(context, AppUsageTrackerService::class.java)
+                      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                          context.startForegroundService(serviceIntent)
+                      } else {
+                          context.startService(serviceIntent)
+                      }
+                  }
                   
                   if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                       missingNotification = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -123,18 +137,19 @@ class MainActivity : ComponentActivity() {
 
       val isFirstLaunch = sharedPrefs.getBoolean("is_first_launch", true)
       
-      if (!isFirstLaunch && (missingOverlay || missingAccessibility || missingNotification || missingBattery)) {
+      if (!isFirstLaunch && (missingOverlay || missingAccessibility || missingNotification || missingBattery || missingUsageStats)) {
           AlertDialog(
               onDismissRequest = { },
               title = { Text("Permissions Required") },
               text = { 
-                  Column {
+                  Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                       Text("The following permissions are disabled but required for the app to function:", style = MaterialTheme.typography.bodyMedium)
                       Spacer(modifier = Modifier.height(8.dp))
                       if (missingNotification) Text("• Notifications", fontWeight = FontWeight.Bold)
                       if (missingOverlay) Text("• Display over other apps", fontWeight = FontWeight.Bold)
                       if (missingAccessibility) Text("• Accessibility service", fontWeight = FontWeight.Bold)
                       if (missingBattery) Text("• Unrestricted battery access (Run in background)", fontWeight = FontWeight.Bold)
+                      if (missingUsageStats) Text("• Usage Access (Track foreground apps)", fontWeight = FontWeight.Bold)
                       Spacer(modifier = Modifier.height(16.dp))
                       Text("Please click below to restore them.", style = MaterialTheme.typography.bodyMedium)
                   }
@@ -165,6 +180,12 @@ class MainActivity : ComponentActivity() {
                                val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                                context.startActivity(intent)
                            }) { Text("Fix Accessibility") }
+                      }
+                      if (missingUsageStats) {
+                           TextButton(onClick = {
+                               val intent = android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                               context.startActivity(intent)
+                           }) { Text("Fix Usage Access") }
                       }
                       if (missingBattery) {
                           TextButton(onClick = {
@@ -530,6 +551,13 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                         onValueChange = { sessionDuration = it },
                         onValueChangeFinished = {
                             sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
+                            
+                            val serviceIntent = android.content.Intent(context, AppUsageTrackerService::class.java)
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                context.startForegroundService(serviceIntent)
+                            } else {
+                                context.startService(serviceIntent)
+                            }
                         },
                         valueRange = 1f..5f,
                         steps = 3
@@ -654,12 +682,22 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
             Text("Target Apps Configuration", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
             Spacer(modifier = Modifier.height(8.dp))
 
+            val restartTrackerService = {
+                val serviceIntent = android.content.Intent(context, AppUsageTrackerService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
+            }
+
             AppFilterItem(
                 appName = "YouTube Shorts",
                 isBlocked = blockYoutube,
                 onBlockChange = { 
                     blockYoutube = it 
                     sharedPrefs.edit().putBoolean("block_youtube", it).apply()
+                    restartTrackerService()
                 },
                 isStrict = strictModeYoutube,
                 onStrictChange = { 
@@ -674,6 +712,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                 onBlockChange = { 
                     blockInstagram = it 
                     sharedPrefs.edit().putBoolean("block_instagram", it).apply()
+                    restartTrackerService()
                 },
                 isStrict = strictModeInstagram,
                 onStrictChange = { 
@@ -688,6 +727,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                 onBlockChange = { 
                     blockSnapchat = it 
                     sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
+                    restartTrackerService()
                 },
                 isStrict = strictModeSnapchat,
                 onStrictChange = { 

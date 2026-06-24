@@ -47,6 +47,19 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
 
+import android.app.AppOpsManager
+import android.os.Process
+
+fun hasUsageStatsPermission(context: Context): Boolean {
+    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+    val mode = appOps.checkOpNoThrow(
+        AppOpsManager.OPSTR_GET_USAGE_STATS,
+        Process.myUid(),
+        context.packageName
+    )
+    return mode == AppOpsManager.MODE_ALLOWED
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShortsBlockerSystemSettingsScreen(
@@ -59,6 +72,7 @@ fun ShortsBlockerSystemSettingsScreen(
 ) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var isUsageStatsGranted by remember { mutableStateOf(hasUsageStatsPermission(context)) }
 
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
@@ -172,6 +186,43 @@ fun ShortsBlockerSystemSettingsScreen(
                                     },
                                 ) {
                                     Text(if (isOverlayGranted) "Manage" else "Grant")
+                                }
+                            }
+                            
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val usageColor by animateColorAsState(if (isUsageStatsGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                val usageIcon = if (isUsageStatsGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
+                                Icon(
+                                    imageVector = usageIcon,
+                                    contentDescription = null,
+                                    tint = usageColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Usage Access",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (isUsageStatsGranted) "Active" else "Required",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(
+                                    onClick = {
+                                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                                        context.startActivity(intent)
+                                    },
+                                ) {
+                                    Text(if (isUsageStatsGranted) "Manage" else "Grant")
                                 }
                             }
                             
