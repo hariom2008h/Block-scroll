@@ -90,7 +90,6 @@ fun ShortsBlockerSystemSettingsScreen(
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
     var feedbackImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var isSendingFeedback by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -679,7 +678,7 @@ fun ShortsBlockerSystemSettingsScreen(
 
             if (showFeedbackDialog) {
                 AlertDialog(
-                    onDismissRequest = { if (!isSendingFeedback) showFeedbackDialog = false },
+                    onDismissRequest = { showFeedbackDialog = false },
                     title = { Text("Send Feedback") },
                     text = {
                         Column {
@@ -721,40 +720,37 @@ fun ShortsBlockerSystemSettingsScreen(
                         Button(
                             onClick = {
                                 if (feedbackText.isNotBlank() || feedbackImages.isNotEmpty()) {
-                                    isSendingFeedback = true
-                                    coroutineScope.launch {
-                                        val success = sendFeedbackToTelegram(context, feedbackText, feedbackImages)
-                                        isSendingFeedback = false
-                                        showFeedbackDialog = false
-                                        feedbackText = ""
-                                        feedbackImages = emptyList()
-                                        if (success) {
-                                            Toast.makeText(context, "फीडबैक के लिए धन्यवाद!", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "Failed to send feedback.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Sending feedback in background...", Toast.LENGTH_SHORT).show()
+                                    showFeedbackDialog = false
+                                    
+                                    val textToSend = feedbackText
+                                    val imagesToSend = feedbackImages.toList()
+                                    val appContext = context.applicationContext
+                                    
+                                    feedbackText = ""
+                                    feedbackImages = emptyList()
+                                    
+                                    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+                                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        val success = sendFeedbackToTelegram(appContext, textToSend, imagesToSend)
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            if (success) {
+                                                Toast.makeText(appContext, "फीडबैक सफलतापूर्वक भेजा गया!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(appContext, "फीडबैक भेजने में समस्या आई।", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     }
                                 }
                             },
-                            enabled = !isSendingFeedback && (feedbackText.isNotBlank() || feedbackImages.isNotEmpty())
+                            enabled = feedbackText.isNotBlank() || feedbackImages.isNotEmpty()
                         ) {
-                            if (isSendingFeedback) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Sending...")
-                            } else {
-                                Text("Submit")
-                            }
+                            Text("Submit")
                         }
                     },
                     dismissButton = {
                         TextButton(
-                            onClick = { showFeedbackDialog = false },
-                            enabled = !isSendingFeedback
+                            onClick = { showFeedbackDialog = false }
                         ) {
                             Text("Cancel")
                         }
@@ -833,6 +829,7 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
         try {
             val token = BuildConfig.TELEGRAM_BOT_TOKEN
             val chatId = BuildConfig.TELEGRAM_CHAT_ID
+            val threadId = BuildConfig.TELEGRAM_THREAD_ID
             
             if (token.isEmpty() || chatId.isEmpty()) {
                 return@withContext false
@@ -843,6 +840,9 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
             
             val jsonObject = JSONObject()
             jsonObject.put("chat_id", chatId)
+            if (threadId.isNotEmpty()) {
+                jsonObject.put("message_thread_id", threadId)
+            }
             
             val timeStamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
             val formattedMessage = """
@@ -886,11 +886,17 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
                     val bytes = inputStream?.readBytes()
                     inputStream?.close()
                     if (bytes != null) {
-                        val requestBody = MultipartBody.Builder()
+                        val builder = MultipartBody.Builder()
                             .setType(MultipartBody.FORM)
                             .addFormDataPart("chat_id", chatId)
-                            .addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
-                            .build()
+                        
+                        if (threadId.isNotEmpty()) {
+                            builder.addFormDataPart("message_thread_id", threadId)
+                        }
+                            
+                        builder.addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
+                        
+                        val requestBody = builder.build()
                         val photoRequest = Request.Builder()
                             .url("https://api.telegram.org/bot$token/sendPhoto")
                             .post(requestBody)
@@ -945,6 +951,7 @@ fun openAutoStartSettings(context: Context) {
 @Composable
 fun HelpFAQScreen(onNavigateBack: () -> Unit) {
     Scaffold(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
         topBar = {
             TopAppBar(
                 title = { Text("Help & FAQs") },
@@ -1043,6 +1050,7 @@ fun HtmlText(html: String, modifier: Modifier = Modifier) {
 @Composable
 fun AboutScreen(currentVersion: String, onNavigateBack: () -> Unit) {
     Scaffold(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
         topBar = {
             TopAppBar(
                 title = { Text("About Shorts Blocker") },
@@ -1102,6 +1110,7 @@ fun UpdateDetailsScreen(
     downloadError: String?
 ) {
     Scaffold(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
         topBar = {
             TopAppBar(
                 title = { Text("Update Available") },
