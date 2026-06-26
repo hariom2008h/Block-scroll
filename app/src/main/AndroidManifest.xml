@@ -41,6 +41,15 @@
         </activity-alias>
 
 
+        <activity
+            android:name=".PauseBackgroundActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance">
+        </activity>
+
         <service
             android:name=".ShortsBlockerService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

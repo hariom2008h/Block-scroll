@@ -668,6 +668,15 @@ class ShortsBlockerService : AccessibilityService() {
                 overlayView?.animate()?.alpha(1f)?.setDuration(250)?.start()
                 isOverlayShowing = true
                 requestAudioFocusToPauseMedia()
+                
+                try {
+                    val intent = Intent(this, PauseBackgroundActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
 
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     overlayView?.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
@@ -810,6 +819,16 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
+    private fun stopPauseActivity() {
+        try {
+            sendBroadcast(Intent("com.example.FINISH_PAUSE_ACTIVITY").apply {
+                setPackage(packageName)
+            })
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun executeExitAndGoBack() {
         lastBackNavigationTime = System.currentTimeMillis()
         
@@ -821,6 +840,7 @@ class ShortsBlockerService : AccessibilityService() {
             try {
                 windowManager.removeView(overlayView)
                 abandonAudioFocusToResumeMedia()
+                stopPauseActivity()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -842,6 +862,7 @@ class ShortsBlockerService : AccessibilityService() {
             try {
                 windowManager.removeView(overlayView)
                 abandonAudioFocusToResumeMedia()
+                stopPauseActivity()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {

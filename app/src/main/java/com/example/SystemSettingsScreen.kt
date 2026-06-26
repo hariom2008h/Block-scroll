@@ -77,6 +77,9 @@ fun ShortsBlockerSystemSettingsScreen(
     var feedbackText by remember { mutableStateOf("") }
     var feedbackImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var isSendingFeedback by remember { mutableStateOf(false) }
+    var showPolicyDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+    var showHelpScreen by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -85,11 +88,12 @@ fun ShortsBlockerSystemSettingsScreen(
         feedbackImages = uris
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+        ) {
         CenterAlignedTopAppBar(
             title = {
                 Text(
@@ -557,10 +561,6 @@ fun ShortsBlockerSystemSettingsScreen(
             Text("Help and policy", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
 
-            var showPolicyDialog by remember { mutableStateOf(false) }
-            var showAboutDialog by remember { mutableStateOf(false) }
-            var showHelpScreen by remember { mutableStateOf(false) }
-
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 SettingsListItem(
                     icon = Icons.AutoMirrored.Rounded.HelpOutline,
@@ -582,48 +582,6 @@ fun ShortsBlockerSystemSettingsScreen(
                     title = "About",
                     onClick = { showAboutDialog = true }
                 )
-            }
-
-            if (showPolicyDialog) {
-                AlertDialog(
-                    onDismissRequest = { showPolicyDialog = false },
-                    title = { Text("Terms of Service & Privacy Policy") },
-                    text = {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            Text("This application respects your privacy and operates locally on your device. It requires Accessibility Services solely for the purpose of detecting and intercepting infinite scrolling features on short-form video platforms. We do not collect, store, or transmit your personal data, scroll history, or any contents of your screen.\n\nBy using this application, you agree to these terms and understand that the app enforces focus by blocking specific UI elements on supported platforms.")
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showPolicyDialog = false }) {
-                            Text("OK")
-                        }
-                    }
-                )
-            }
-
-            if (showAboutDialog) {
-                val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
-                androidx.compose.ui.window.Dialog(
-                    onDismissRequest = { showAboutDialog = false },
-                    properties = androidx.compose.ui.window.DialogProperties(
-                        usePlatformDefaultWidth = false,
-                        decorFitsSystemWindows = false
-                    )
-                ) {
-                    AboutScreen(currentVersion = currentVersion, onNavigateBack = { showAboutDialog = false })
-                }
-            }
-
-            if (showHelpScreen) {
-                androidx.compose.ui.window.Dialog(
-                    onDismissRequest = { showHelpScreen = false },
-                    properties = androidx.compose.ui.window.DialogProperties(
-                        usePlatformDefaultWidth = false,
-                        decorFitsSystemWindows = false
-                    )
-                ) {
-                    HelpFAQScreen(onNavigateBack = { showHelpScreen = false })
-                }
             }
 
             if (showFeedbackDialog) {
@@ -707,14 +665,38 @@ fun ShortsBlockerSystemSettingsScreen(
         }
     }
 
-    showUpdateDialog?.let { updateInfo ->
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { showUpdateDialog = null },
-            properties = androidx.compose.ui.window.DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false
-            )
-        ) {
+    // Full screen overlays using AnimatedVisibility
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showPolicyDialog,
+        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
+    ) {
+        PrivacyPolicyScreen(onNavigateBack = { showPolicyDialog = false })
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showAboutDialog,
+        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
+    ) {
+        val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
+        AboutScreen(currentVersion = currentVersion, onNavigateBack = { showAboutDialog = false })
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showHelpScreen,
+        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
+    ) {
+        HelpFAQScreen(onNavigateBack = { showHelpScreen = false })
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showUpdateDialog != null,
+        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
+    ) {
+        showUpdateDialog?.let { updateInfo ->
             UpdateDetailsScreen(
                 updateInfo = updateInfo,
                 onNavigateBack = { showUpdateDialog = null },
@@ -738,6 +720,7 @@ fun ShortsBlockerSystemSettingsScreen(
             )
         }
     }
+}
 }
 
 @Composable
@@ -891,6 +874,45 @@ fun openAutoStartSettings(context: Context) {
         Toast.makeText(context, "Please allow Auto Start in App Settings manually", Toast.LENGTH_LONG).show()
     } catch (e: Exception) {
         Toast.makeText(context, "Please allow Auto Start in App Settings manually", Toast.LENGTH_LONG).show()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
+        topBar = {
+            TopAppBar(
+                title = { Text("Terms of Service & Privacy Policy") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "This application respects your privacy and operates locally on your device. It requires Accessibility Services solely for the purpose of detecting and intercepting infinite scrolling features on short-form video platforms. We do not collect, store, or transmit your personal data, scroll history, or any contents of your screen.\n\nBy using this application, you agree to these terms and understand that the app enforces focus by blocking specific UI elements on supported platforms.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onNavigateBack,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("OK")
+            }
+        }
     }
 }
 
