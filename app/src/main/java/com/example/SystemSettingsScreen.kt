@@ -47,19 +47,6 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
 
-import android.app.AppOpsManager
-import android.os.Process
-
-fun hasUsageStatsPermission(context: Context): Boolean {
-    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    val mode = appOps.checkOpNoThrow(
-        AppOpsManager.OPSTR_GET_USAGE_STATS,
-        Process.myUid(),
-        context.packageName
-    )
-    return mode == AppOpsManager.MODE_ALLOWED
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShortsBlockerSystemSettingsScreen(
@@ -72,7 +59,6 @@ fun ShortsBlockerSystemSettingsScreen(
 ) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    var isUsageStatsGranted by remember { mutableStateOf(hasUsageStatsPermission(context)) }
 
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
@@ -90,6 +76,7 @@ fun ShortsBlockerSystemSettingsScreen(
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
     var feedbackImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var isSendingFeedback by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -185,43 +172,6 @@ fun ShortsBlockerSystemSettingsScreen(
                                     },
                                 ) {
                                     Text(if (isOverlayGranted) "Manage" else "Grant")
-                                }
-                            }
-                            
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val usageColor by animateColorAsState(if (isUsageStatsGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                                val usageIcon = if (isUsageStatsGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-                                Icon(
-                                    imageVector = usageIcon,
-                                    contentDescription = null,
-                                    tint = usageColor,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Usage Access",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = if (isUsageStatsGranted) "Active" else "Required",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                                        context.startActivity(intent)
-                                    },
-                                ) {
-                                    Text(if (isUsageStatsGranted) "Manage" else "Grant")
                                 }
                             }
                             
@@ -720,24 +670,21 @@ fun ShortsBlockerSystemSettingsScreen(
                         Button(
                             onClick = {
                                 if (feedbackText.isNotBlank() || feedbackImages.isNotEmpty()) {
-                                    Toast.makeText(context, "Sending feedback in background...", Toast.LENGTH_SHORT).show()
+                                    val currentText = feedbackText
+                                    val currentImages = feedbackImages.toList()
+                                    
                                     showFeedbackDialog = false
-                                    
-                                    val textToSend = feedbackText
-                                    val imagesToSend = feedbackImages.toList()
-                                    val appContext = context.applicationContext
-                                    
                                     feedbackText = ""
                                     feedbackImages = emptyList()
+                                    Toast.makeText(context, "Sending feedback in background...", Toast.LENGTH_SHORT).show()
                                     
-                                    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-                                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        val success = sendFeedbackToTelegram(appContext, textToSend, imagesToSend)
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        val success = sendFeedbackToTelegram(context, currentText, currentImages)
+                                        withContext(kotlinx.coroutines.Dispatchers.Main) {
                                             if (success) {
-                                                Toast.makeText(appContext, "फीडबैक सफलतापूर्वक भेजा गया!", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "फीडबैक के लिए धन्यवाद!", Toast.LENGTH_LONG).show()
                                             } else {
-                                                Toast.makeText(appContext, "फीडबैक भेजने में समस्या आई।", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Failed to send feedback.", Toast.LENGTH_LONG).show()
                                             }
                                         }
                                     }
@@ -886,17 +833,17 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
                     val bytes = inputStream?.readBytes()
                     inputStream?.close()
                     if (bytes != null) {
-                        val builder = MultipartBody.Builder()
+                        val multipartBuilder = MultipartBody.Builder()
                             .setType(MultipartBody.FORM)
                             .addFormDataPart("chat_id", chatId)
-                        
-                        if (threadId.isNotEmpty()) {
-                            builder.addFormDataPart("message_thread_id", threadId)
-                        }
                             
-                        builder.addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
-                        
-                        val requestBody = builder.build()
+                        if (threadId.isNotEmpty()) {
+                            multipartBuilder.addFormDataPart("message_thread_id", threadId)
+                        }
+
+                        val requestBody = multipartBuilder
+                            .addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
+                            .build()
                         val photoRequest = Request.Builder()
                             .url("https://api.telegram.org/bot$token/sendPhoto")
                             .post(requestBody)
@@ -951,7 +898,7 @@ fun openAutoStartSettings(context: Context) {
 @Composable
 fun HelpFAQScreen(onNavigateBack: () -> Unit) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
         topBar = {
             TopAppBar(
                 title = { Text("Help & FAQs") },
@@ -1050,7 +997,7 @@ fun HtmlText(html: String, modifier: Modifier = Modifier) {
 @Composable
 fun AboutScreen(currentVersion: String, onNavigateBack: () -> Unit) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
         topBar = {
             TopAppBar(
                 title = { Text("About Shorts Blocker") },
@@ -1110,7 +1057,7 @@ fun UpdateDetailsScreen(
     downloadError: String?
 ) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
         topBar = {
             TopAppBar(
                 title = { Text("Update Available") },
