@@ -881,7 +881,7 @@ fun openAutoStartSettings(context: Context) {
 @Composable
 fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text("Terms of Service & Privacy Policy") },
@@ -920,7 +920,7 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
 @Composable
 fun HelpFAQScreen(onNavigateBack: () -> Unit) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text("Help & FAQs") },
@@ -1019,7 +1019,7 @@ fun HtmlText(html: String, modifier: Modifier = Modifier) {
 @Composable
 fun AboutScreen(currentVersion: String, onNavigateBack: () -> Unit) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text("About Shorts Blocker") },
@@ -1079,7 +1079,7 @@ fun UpdateDetailsScreen(
     downloadError: String?
 ) {
     Scaffold(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.safeDrawing),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text("Update Available") },

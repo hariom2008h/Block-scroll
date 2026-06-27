@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.ui.theme.MyApplicationTheme
 
@@ -188,10 +189,11 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
+          val screenModifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)
           when (currentScreen) {
             "onboarding" -> {
               ShortsBlockerOnboardingScreen(
-                  modifier = Modifier.padding(innerPadding),
+                  modifier = screenModifier,
                   onFinishOnboarding = {
                       sharedPrefs.edit().putBoolean("is_first_launch", false).apply()
                       currentScreen = "home"
@@ -200,20 +202,20 @@ class MainActivity : ComponentActivity() {
             }
             "home" -> {
               ShortsBlockerHomeScreen(
-                  modifier = Modifier.padding(innerPadding),
+                  modifier = screenModifier,
                   onNavigateToSettings = { currentScreen = "settings" }
               )
             }
             "settings" -> {
               ShortsBlockerSettingsScreen(
-                  modifier = Modifier.padding(innerPadding),
+                  modifier = screenModifier,
                   onNavigateBack = { currentScreen = "home" },
                   onNavigateToSystemSettings = { currentScreen = "system_settings" }
               )
             }
             "system_settings" -> {
               ShortsBlockerSystemSettingsScreen(
-                  modifier = Modifier.padding(innerPadding),
+                  modifier = screenModifier,
                   themeMode = themeMode,
                   onThemeModeChange = { 
                       themeMode = it
