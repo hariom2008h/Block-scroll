@@ -688,6 +688,8 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
+            val requiresAutoStart = remember { needsAutoStart() }
+            
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -701,7 +703,7 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Auto Start / Battery",
+                        text = if (requiresAutoStart) "Auto Start / Battery" else "Battery Optimization",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -725,7 +727,9 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                             } catch (e2: Exception) {
                             }
                         }
-                        openAutoStartSettings(context)
+                        if (requiresAutoStart) {
+                            openAutoStartSettings(context)
+                        }
                     },
                 ) {
                     Text("Fix")
@@ -885,6 +889,12 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
             false
         }
     }
+}
+
+fun needsAutoStart(): Boolean {
+    val manufacturer = android.os.Build.MANUFACTURER.lowercase(java.util.Locale.getDefault())
+    val autoStartBrands = listOf("xiaomi", "oppo", "vivo", "letv", "honor", "samsung", "asus", "oneplus", "realme", "poco", "iqoo")
+    return autoStartBrands.any { manufacturer.contains(it) }
 }
 
 fun openAutoStartSettings(context: Context) {

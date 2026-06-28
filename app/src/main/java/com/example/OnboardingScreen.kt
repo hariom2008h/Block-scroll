@@ -36,6 +36,7 @@ enum class OnboardingStep {
     NOTIFICATION,
     OVERLAY,
     ACCESSIBILITY,
+    BATTERY_OPTIMIZATION,
     ALL_SET
 }
 
@@ -54,6 +55,7 @@ fun ShortsBlockerOnboardingScreen(
         }
         list.add(OnboardingStep.OVERLAY)
         list.add(OnboardingStep.ACCESSIBILITY)
+        list.add(OnboardingStep.BATTERY_OPTIMIZATION)
         list.add(OnboardingStep.ALL_SET)
         list
     }
@@ -143,6 +145,13 @@ fun ShortsBlockerOnboardingScreen(
                     title = "Accessibility Permission",
                     description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
                     icon = Icons.Rounded.VisibilityOff,
+                    isAnimated = true,
+                    animationType = "pulse"
+                )
+                OnboardingStep.BATTERY_OPTIMIZATION -> OnboardingPage(
+                    title = if (needsAutoStart()) "Auto Start & Battery" else "Battery Optimization",
+                    description = "Allow the app to run in the background without being killed by the system.",
+                    icon = Icons.Rounded.BatteryStd,
                     isAnimated = true,
                     animationType = "pulse"
                 )
@@ -268,6 +277,34 @@ fun ShortsBlockerOnboardingScreen(
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Next")
+                        }
+                    }
+                }
+                OnboardingStep.BATTERY_OPTIMIZATION -> {
+                    Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                            Text("Skip")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = android.net.Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        context.startActivity(intent)
+                                    } catch (e2: Exception) {}
+                                }
+                                if (needsAutoStart()) {
+                                    openAutoStartSettings(context)
+                                }
+                            }
+                        ) {
+                            Text("Fix Battery")
                         }
                     }
                 }
