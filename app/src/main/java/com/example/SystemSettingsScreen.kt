@@ -125,64 +125,6 @@ fun ShortsBlockerSystemSettingsScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp)
         ) {
-            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-
-            SettingsListItem(
-                icon = Icons.Rounded.Shield,
-                title = "Manage Permissions",
-                onClick = onNavigateToPermissions
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("Appearance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Dynamic Color", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = "Use Android 12+ wallpaper-based colors",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = useDynamicColor,
-                        onCheckedChange = { onDynamicColorChange(it) }
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-            
-            Text("Theme Mode", style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val options = listOf("Auto", "Light", "Dark")
-                options.forEachIndexed { index, label ->
-                    SegmentedButton(
-                        selected = themeMode == index,
-                        onClick = { onThemeModeChange(index) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
-                    ) {
-                        Text(label)
-                    }
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -426,6 +368,66 @@ fun ShortsBlockerSystemSettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
+            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
+
+            SettingsListItem(
+                icon = Icons.Rounded.Shield,
+                title = "Manage Permissions",
+                onClick = onNavigateToPermissions
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+            Text("Appearance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Dynamic Color", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "Use Android 12+ wallpaper-based colors",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = useDynamicColor,
+                        onCheckedChange = { onDynamicColorChange(it) }
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            
+            Text("Theme Mode", style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val options = listOf("Auto", "Light", "Dark")
+                options.forEachIndexed { index, label ->
+                    SegmentedButton(
+                        selected = themeMode == index,
+                        onClick = { onThemeModeChange(index) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                    ) {
+                        Text(label)
+                    }
+                }
+            }
+
+
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
             Text("Help and policy", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -513,26 +515,7 @@ fun ShortsBlockerSystemSettingsScreen(
                                         }
                                     } catch (e: Exception) {}
                                     
-                                    val isOverlayEnabled = Settings.canDrawOverlays(context)
-                                    val appVersion = UpdateChecker.getCurrentVersion(context)
-                                    val manufacturer = android.os.Build.MANUFACTURER
-                                    val model = android.os.Build.MODEL
-                                    val androidVersion = android.os.Build.VERSION.RELEASE
-                                    
-                                    val deviceInfo = """
-                                        |
-                                        |---
-                                        |📱 Device Info:
-                                        |Device: $manufacturer $model
-                                        |Android Version: $androidVersion
-                                        |App Version: $appVersion
-                                        |
-                                        |⚙️ Settings Status:
-                                        |Overlay Permission: ${if (isOverlayEnabled) "ON" else "OFF"}
-                                        |Accessibility Service: ${if (isAccessibilityEnabled) "ON" else "OFF"}
-                                    """.trimMargin()
-                                    
-                                    val currentText = feedbackText + "\n" + deviceInfo
+                                    val currentText = feedbackText
                                     val currentImages = feedbackImages.toList()
                                     
                                     showFeedbackDialog = false
@@ -797,31 +780,55 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
             val client = OkHttpClient()
             val url = "https://api.telegram.org/bot$token/sendMessage"
             
+            // Extract Diagnostics
+            val deviceManufacturer = android.os.Build.MANUFACTURER.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+            val deviceModel = android.os.Build.MODEL
+            val androidVersion = android.os.Build.VERSION.RELEASE
+            val appVersion = try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            } catch (e: Exception) { "Unknown" }
+            
+            val isOverlayGranted = Settings.canDrawOverlays(context)
+            val isNotificationsEnabled = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                notificationManager.areNotificationsEnabled()
+            } else {
+                true
+            }
+
+            val userFeedback = feedback.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+            val timeStamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+
+            val telegramMessage = """
+                <b>📥 NEW FEEDBACK RECEIVED</b>
+                ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+                
+                <b>💬 User Message:</b>
+                <i>$userFeedback</i>
+                
+                <b>📅 Date &amp; Time:</b> $timeStamp
+                
+                ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+                <b>📱 Device Diagnostics:</b>
+                <pre><code>Manufacturer : $deviceManufacturer
+Device Model : $deviceModel
+Android Ver. : $androidVersion
+App Version  : $appVersion</code></pre>
+                
+                <b>⚙️ System Permissions:</b>
+                <pre><code>Overlay      : ${if (isOverlayGranted) "✅ GRANTED" else "❌ DENIED"}
+Notification : ${if (isNotificationsEnabled) "✅ ENABLED" else "❌ DISABLED"}</code></pre>
+                ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+            """.trimIndent()
+            
             val jsonObject = JSONObject()
             jsonObject.put("chat_id", chatId)
             if (threadId.isNotEmpty()) {
                 jsonObject.put("message_thread_id", threadId)
             }
-            
-            val timeStamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-            val formattedMessage = """
-                🚀 **NEW FEEDBACK RECEIVED**
-                ----------------------------------
-                📱 **Application:** Shorts Blocker
-                👤 **User/Chat ID:** $chatId
-                📅 **Date & Time:** $timeStamp
-
-                🎯 **Type:** General Feedback
-                🚨 **Priority:** 🟢 Low
-
-                📝 **Message:**
-                "$feedback"
-                
-                📎 **Attachments:** ${imageUris.size}
-                -----------------------------
-            """.trimIndent()
-            
-            jsonObject.put("text", formattedMessage)
+            jsonObject.put("text", telegramMessage)
+            jsonObject.put("parse_mode", "HTML")
             
             val body = RequestBody.create(
                 "application/json; charset=utf-8".toMediaType(),
