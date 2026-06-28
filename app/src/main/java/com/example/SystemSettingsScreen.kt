@@ -811,14 +811,14 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
                 
                 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
                 <b>📱 Device Diagnostics:</b>
-                <pre><code>Manufacturer : $deviceManufacturer
-Device Model : $deviceModel
-Android Ver. : $androidVersion
-App Version  : $appVersion</code></pre>
+                <code>• Manufacturer : $deviceManufacturer</code>
+                <code>• Device Model : $deviceModel</code>
+                <code>• Android Ver. : $androidVersion</code>
+                <code>• App Version  : $appVersion</code>
                 
                 <b>⚙️ System Permissions:</b>
-                <pre><code>Overlay      : ${if (isOverlayGranted) "✅ GRANTED" else "❌ DENIED"}
-Notification : ${if (isNotificationsEnabled) "✅ ENABLED" else "❌ DISABLED"}</code></pre>
+                <code>• Overlay      : ${if (isOverlayGranted) "✅ GRANTED" else "❌ DENIED"}</code>
+                <code>• Notification : ${if (isNotificationsEnabled) "✅ ENABLED" else "❌ DISABLED"}</code>
                 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
             """.trimIndent()
             
