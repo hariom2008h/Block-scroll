@@ -55,7 +55,11 @@ fun ShortsBlockerSystemSettingsScreen(
     onThemeModeChange: (Int) -> Unit,
     useDynamicColor: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToPermissions: () -> Unit,
+    onNavigateToPrivacyPolicy: () -> Unit,
+    onNavigateToAbout: () -> Unit,
+    onNavigateToHelp: () -> Unit
 ) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
@@ -77,9 +81,6 @@ fun ShortsBlockerSystemSettingsScreen(
     var feedbackText by remember { mutableStateOf("") }
     var feedbackImages by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var isSendingFeedback by remember { mutableStateOf(false) }
-    var showPolicyDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showHelpScreen by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -129,145 +130,12 @@ fun ShortsBlockerSystemSettingsScreen(
             
             val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
             val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-            var showPermissionsDialog by remember { mutableStateOf(false) }
 
             SettingsListItem(
                 icon = Icons.Rounded.Shield,
                 title = "Manage Permissions",
-                onClick = { showPermissionsDialog = true }
+                onClick = onNavigateToPermissions
             )
-
-            if (showPermissionsDialog) {
-                AlertDialog(
-                    onDismissRequest = { showPermissionsDialog = false },
-                    title = { Text("System Access") },
-                    text = {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = overlayIcon,
-                                    contentDescription = null,
-                                    tint = overlayColor,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Overlay Permission",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = if (isOverlayGranted) "Active" else "Required",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        val intent = Intent(
-                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                            Uri.parse("package:${context.packageName}")
-                                        )
-                                        context.startActivity(intent)
-                                    },
-                                ) {
-                                    Text(if (isOverlayGranted) "Manage" else "Grant")
-                                }
-                            }
-                            
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Settings,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Accessibility",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "To intercept scrolls",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                        context.startActivity(intent)
-                                    },
-                                ) {
-                                    Text("Enable")
-                                }
-                            }
-                            
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Rounded.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Auto Start / Battery",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Required for background block",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        try {
-                                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                data = Uri.parse("package:${context.packageName}")
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            try {
-                                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                                context.startActivity(intent)
-                                            } catch (e2: Exception) {
-                                            }
-                                        }
-                                        openAutoStartSettings(context)
-                                    },
-                                ) {
-                                    Text("Fix")
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showPermissionsDialog = false }) {
-                            Text("Done")
-                        }
-                    }
-                )
-            }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
@@ -565,12 +433,12 @@ fun ShortsBlockerSystemSettingsScreen(
                 SettingsListItem(
                     icon = Icons.AutoMirrored.Rounded.HelpOutline,
                     title = "Help & FAQs",
-                    onClick = { showHelpScreen = true }
+                    onClick = onNavigateToHelp
                 )
                 SettingsListItem(
                     icon = Icons.Rounded.Description,
                     title = "Terms of Service & Privacy Policy",
-                    onClick = { showPolicyDialog = true }
+                    onClick = onNavigateToPrivacyPolicy
                 )
                 SettingsListItem(
                     icon = Icons.Rounded.ChatBubbleOutline,
@@ -580,7 +448,7 @@ fun ShortsBlockerSystemSettingsScreen(
                 SettingsListItem(
                     icon = Icons.Rounded.Info,
                     title = "About",
-                    onClick = { showAboutDialog = true }
+                    onClick = onNavigateToAbout
                 )
             }
 
@@ -628,7 +496,53 @@ fun ShortsBlockerSystemSettingsScreen(
                         Button(
                             onClick = {
                                 if (feedbackText.isNotBlank() || feedbackImages.isNotEmpty()) {
-                                    val currentText = feedbackText
+                                    var isAccessibilityEnabled = false
+                                    try {
+                                        val accessibilityEnabled = android.provider.Settings.Secure.getInt(
+                                            context.contentResolver,
+                                            android.provider.Settings.Secure.ACCESSIBILITY_ENABLED
+                                        )
+                                        if (accessibilityEnabled == 1) {
+                                            val settingValue = android.provider.Settings.Secure.getString(
+                                                context.contentResolver,
+                                                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                                            )
+                                            if (settingValue?.contains(context.packageName) == true) {
+                                                isAccessibilityEnabled = true
+                                            }
+                                        }
+                                    } catch (e: Exception) {}
+                                    
+                                    val isOverlayEnabled = Settings.canDrawOverlays(context)
+                                    val isNotificationEnabled = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                    } else {
+                                        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+                                    }
+                                    val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                                    val isIgnoringBatteryOptimizations = pm.isIgnoringBatteryOptimizations(context.packageName)
+                                    
+                                    val appVersion = UpdateChecker.getCurrentVersion(context)
+                                    val manufacturer = android.os.Build.MANUFACTURER
+                                    val model = android.os.Build.MODEL
+                                    val androidVersion = android.os.Build.VERSION.RELEASE
+                                    
+                                    val deviceInfo = """
+                                        |
+                                        |---
+                                        |📱 <b>Device Info:</b>
+                                        |<b>Device:</b> $manufacturer $model
+                                        |<b>Android Version:</b> $androidVersion
+                                        |<b>App Version:</b> $appVersion
+                                        |
+                                        |⚙️ <b>Settings Status:</b>
+                                        |<b>Overlay Permission:</b> ${if (isOverlayEnabled) "ON" else "OFF"}
+                                        |<b>Accessibility Service:</b> ${if (isAccessibilityEnabled) "ON" else "OFF"}
+                                        |<b>Notifications:</b> ${if (isNotificationEnabled) "ON" else "OFF"}
+                                        |<b>Unrestricted Battery/Auto Start:</b> ${if (isIgnoringBatteryOptimizations) "ON (Ignored)" else "OFF (Optimized)"}
+                                    """.trimMargin()
+                                    
+                                    val currentText = feedbackText + "\n" + deviceInfo
                                     val currentImages = feedbackImages.toList()
                                     
                                     showFeedbackDialog = false
@@ -667,31 +581,6 @@ fun ShortsBlockerSystemSettingsScreen(
 
     // Full screen overlays using AnimatedVisibility
     androidx.compose.animation.AnimatedVisibility(
-        visible = showPolicyDialog,
-        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
-        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
-    ) {
-        PrivacyPolicyScreen(onNavigateBack = { showPolicyDialog = false })
-    }
-
-    androidx.compose.animation.AnimatedVisibility(
-        visible = showAboutDialog,
-        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
-        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
-    ) {
-        val currentVersion = remember { UpdateChecker.getCurrentVersion(context) }
-        AboutScreen(currentVersion = currentVersion, onNavigateBack = { showAboutDialog = false })
-    }
-
-    androidx.compose.animation.AnimatedVisibility(
-        visible = showHelpScreen,
-        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
-        exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
-    ) {
-        HelpFAQScreen(onNavigateBack = { showHelpScreen = false })
-    }
-
-    androidx.compose.animation.AnimatedVisibility(
         visible = showUpdateDialog != null,
         enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
         exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
@@ -721,6 +610,156 @@ fun ShortsBlockerSystemSettingsScreen(
         }
     }
 }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PermissionsScreen(onNavigateBack: () -> Unit) {
+    val context = LocalContext.current
+    var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text("Manage Permissions") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(innerPadding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = overlayIcon,
+                    contentDescription = null,
+                    tint = overlayColor,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Overlay Permission",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (isOverlayGranted) "Active" else "Required",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Text(if (isOverlayGranted) "Manage" else "Grant")
+                }
+            }
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Accessibility",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "To intercept scrolls",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Text("Enable")
+                }
+            }
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Rounded.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Auto Start / Battery",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Required for background block",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            try {
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (e2: Exception) {
+                            }
+                        }
+                        openAutoStartSettings(context)
+                    },
+                ) {
+                    Text("Fix")
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -775,24 +814,25 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
             }
             
             val timeStamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+            val escapedFeedback = feedback.replace("<", "&lt;").replace(">", "&gt;")
             val formattedMessage = """
-                🚀 **NEW FEEDBACK RECEIVED**
+                🚀 <b>NEW FEEDBACK RECEIVED</b>
                 ----------------------------------
-                📱 **Application:** Shorts Blocker
-                👤 **User/Chat ID:** $chatId
-                📅 **Date & Time:** $timeStamp
+                📱 <b>Application:</b> Shorts Blocker
+                📅 <b>Date & Time:</b> $timeStamp
 
-                🎯 **Type:** General Feedback
-                🚨 **Priority:** 🟢 Low
+                🎯 <b>Type:</b> General Feedback
+                🚨 <b>Priority:</b> 🟢 Low
 
-                📝 **Message:**
-                "$feedback"
+                📝 <b>Message:</b>
+                $escapedFeedback
                 
-                📎 **Attachments:** ${imageUris.size}
+                📎 <b>Attachments:</b> ${imageUris.size}
                 -----------------------------
             """.trimIndent()
             
             jsonObject.put("text", formattedMessage)
+            jsonObject.put("parse_mode", "HTML")
             
             val body = RequestBody.create(
                 "application/json; charset=utf-8".toMediaType(),

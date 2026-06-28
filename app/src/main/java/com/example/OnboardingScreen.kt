@@ -36,6 +36,7 @@ enum class OnboardingStep {
     NOTIFICATION,
     OVERLAY,
     ACCESSIBILITY,
+    BATTERY_OPTIMIZATION,
     ALL_SET
 }
 
@@ -54,6 +55,7 @@ fun ShortsBlockerOnboardingScreen(
         }
         list.add(OnboardingStep.OVERLAY)
         list.add(OnboardingStep.ACCESSIBILITY)
+        list.add(OnboardingStep.BATTERY_OPTIMIZATION)
         list.add(OnboardingStep.ALL_SET)
         list
     }
@@ -75,6 +77,9 @@ fun ShortsBlockerOnboardingScreen(
             } else true
         ) 
     }
+    var isBatteryOptimizationGranted by remember {
+        mutableStateOf((context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager).isIgnoringBatteryOptimizations(context.packageName))
+    }
 
     val requestNotificationLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -93,6 +98,7 @@ fun ShortsBlockerOnboardingScreen(
                         android.Manifest.permission.POST_NOTIFICATIONS
                     ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 } else true
+                isBatteryOptimizationGranted = (context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager).isIgnoringBatteryOptimizations(context.packageName)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -143,6 +149,13 @@ fun ShortsBlockerOnboardingScreen(
                     title = "Accessibility Permission",
                     description = "To know when you scroll into a short video, we need Accessibility Permission. We do NOT read any personal data.",
                     icon = Icons.Rounded.VisibilityOff,
+                    isAnimated = true,
+                    animationType = "pulse"
+                )
+                OnboardingStep.BATTERY_OPTIMIZATION -> OnboardingPage(
+                    title = "Auto Start & Battery",
+                    description = "We need unrestricted battery access and Auto Start permissions to prevent Android from killing the block in the background.",
+                    icon = Icons.Rounded.Warning,
                     isAnimated = true,
                     animationType = "pulse"
                 )
@@ -260,6 +273,42 @@ fun ShortsBlockerOnboardingScreen(
                                 }
                             ) {
                                 Text("Grant Accessibility")
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
+                        }
+                    }
+                }
+                OnboardingStep.BATTERY_OPTIMIZATION -> {
+                    if (!isBatteryOptimizationGranted) {
+                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                                Text("Next")
+                            }
+                            Spacer(modifier=Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = android.net.Uri.parse("package:${context.packageName}")
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        try {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        } catch (e2: Exception) {
+                                        }
+                                    }
+                                    openAutoStartSettings(context)
+                                }
+                            ) {
+                                Text("Grant Access")
                             }
                         }
                     } else {
