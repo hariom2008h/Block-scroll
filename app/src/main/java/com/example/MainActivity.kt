@@ -270,6 +270,8 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
     }
     
+    var showDailyRelief by remember { mutableStateOf(false) }
+    
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var bypassCount by remember { mutableIntStateOf(sharedPrefs.getInt("bypass_count", 0)) }
     var isPasswordSectionExpanded by remember { mutableStateOf(false) }
@@ -556,7 +558,49 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text("Daily Allowance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false, modifier = Modifier.padding(horizontal = 24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Card(
+                onClick = { showDailyRelief = true },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Timer,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Daily Relief Time",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Set daily uninterrupted watch time",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+    
+    if (showDailyRelief) {
+        DailyReliefBottomSheet(onDismiss = { showDailyRelief = false })
     }
 }
 
@@ -564,8 +608,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
 @Composable
 fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Unit, onNavigateToSystemSettings: () -> Unit) {
     val context = LocalContext.current
-
-    var showDailyRelief by remember { mutableStateOf(false) }
 
     val sharedPrefs = remember {
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
@@ -719,42 +761,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-            
-            Text("Daily Allowance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Card(
-                onClick = { showDailyRelief = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Timer,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Daily Relief Time",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Set daily uninterrupted watch time",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
             Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
             Spacer(modifier = Modifier.height(8.dp))
@@ -830,10 +836,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
             }
 
         }
-    }
-
-    if (showDailyRelief) {
-        DailyReliefBottomSheet(onDismiss = { showDailyRelief = false })
     }
 }
 

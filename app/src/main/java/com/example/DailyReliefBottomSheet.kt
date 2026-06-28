@@ -109,7 +109,8 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
             },
             modifier = Modifier
                 .size(220.dp)
-                .padding(16.dp)
+                .padding(16.dp),
+            maxValue = 30
         )
         
         Spacer(modifier = Modifier.height(32.dp))
