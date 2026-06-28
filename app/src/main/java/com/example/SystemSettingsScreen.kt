@@ -514,14 +514,6 @@ fun ShortsBlockerSystemSettingsScreen(
                                     } catch (e: Exception) {}
                                     
                                     val isOverlayEnabled = Settings.canDrawOverlays(context)
-                                    val isNotificationEnabled = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                                    } else {
-                                        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
-                                    }
-                                    val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                                    val isIgnoringBatteryOptimizations = pm.isIgnoringBatteryOptimizations(context.packageName)
-                                    
                                     val appVersion = UpdateChecker.getCurrentVersion(context)
                                     val manufacturer = android.os.Build.MANUFACTURER
                                     val model = android.os.Build.MODEL
@@ -530,16 +522,14 @@ fun ShortsBlockerSystemSettingsScreen(
                                     val deviceInfo = """
                                         |
                                         |---
-                                        |📱 <b>Device Info:</b>
-                                        |<b>Device:</b> $manufacturer $model
-                                        |<b>Android Version:</b> $androidVersion
-                                        |<b>App Version:</b> $appVersion
+                                        |📱 Device Info:
+                                        |Device: $manufacturer $model
+                                        |Android Version: $androidVersion
+                                        |App Version: $appVersion
                                         |
-                                        |⚙️ <b>Settings Status:</b>
-                                        |<b>Overlay Permission:</b> ${if (isOverlayEnabled) "ON" else "OFF"}
-                                        |<b>Accessibility Service:</b> ${if (isAccessibilityEnabled) "ON" else "OFF"}
-                                        |<b>Notifications:</b> ${if (isNotificationEnabled) "ON" else "OFF"}
-                                        |<b>Unrestricted Battery/Auto Start:</b> ${if (isIgnoringBatteryOptimizations) "ON (Ignored)" else "OFF (Optimized)"}
+                                        |⚙️ Settings Status:
+                                        |Overlay Permission: ${if (isOverlayEnabled) "ON" else "OFF"}
+                                        |Accessibility Service: ${if (isAccessibilityEnabled) "ON" else "OFF"}
                                     """.trimMargin()
                                     
                                     val currentText = feedbackText + "\n" + deviceInfo
@@ -814,25 +804,24 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
             }
             
             val timeStamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-            val escapedFeedback = feedback.replace("<", "&lt;").replace(">", "&gt;")
             val formattedMessage = """
-                🚀 <b>NEW FEEDBACK RECEIVED</b>
+                🚀 **NEW FEEDBACK RECEIVED**
                 ----------------------------------
-                📱 <b>Application:</b> Shorts Blocker
-                📅 <b>Date & Time:</b> $timeStamp
+                📱 **Application:** Shorts Blocker
+                👤 **User/Chat ID:** $chatId
+                📅 **Date & Time:** $timeStamp
 
-                🎯 <b>Type:</b> General Feedback
-                🚨 <b>Priority:</b> 🟢 Low
+                🎯 **Type:** General Feedback
+                🚨 **Priority:** 🟢 Low
 
-                📝 <b>Message:</b>
-                $escapedFeedback
+                📝 **Message:**
+                "$feedback"
                 
-                📎 <b>Attachments:</b> ${imageUris.size}
+                📎 **Attachments:** ${imageUris.size}
                 -----------------------------
             """.trimIndent()
             
             jsonObject.put("text", formattedMessage)
-            jsonObject.put("parse_mode", "HTML")
             
             val body = RequestBody.create(
                 "application/json; charset=utf-8".toMediaType(),
