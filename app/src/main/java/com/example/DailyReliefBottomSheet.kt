@@ -153,13 +153,14 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
                             targetState = remainingMinutes,
                             transitionSpec = {
                                 if (targetState < initialState) {
-                                    slideInVertically { height -> -height } + fadeIn() togetherWith
-                                    slideOutVertically { height -> height } + fadeOut()
+                                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                                    (slideOutVertically { height -> height } + fadeOut())
                                 } else {
-                                    slideInVertically { height -> height } + fadeIn() togetherWith
-                                    slideOutVertically { height -> -height } + fadeOut()
+                                    (slideInVertically { height -> height } + fadeIn()) togetherWith
+                                    (slideOutVertically { height -> -height } + fadeOut())
                                 }.using(SizeTransform(clip = false))
-                            }
+                            },
+                            label = "minutes_anim"
                         ) { targetMins ->
                             Text(
                                 text = String.format(Locale.getDefault(), "%02d", targetMins),
@@ -176,19 +177,20 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
                         AnimatedContent(
-                            targetState = remainingSeconds,
+                            targetState = Pair(remainingMinutes, remainingSeconds),
                             transitionSpec = {
-                                if (targetState < initialState) {
-                                    slideInVertically { height -> -height } + fadeIn() togetherWith
-                                    slideOutVertically { height -> height } + fadeOut()
+                                if (targetState.first < initialState.first || targetState.second < initialState.second) {
+                                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                                    (slideOutVertically { height -> height } + fadeOut())
                                 } else {
-                                    slideInVertically { height -> height } + fadeIn() togetherWith
-                                    slideOutVertically { height -> -height } + fadeOut()
+                                    (slideInVertically { height -> height } + fadeIn()) togetherWith
+                                    (slideOutVertically { height -> -height } + fadeOut())
                                 }.using(SizeTransform(clip = false))
-                            }
-                        ) { targetSecs ->
+                            },
+                            label = "seconds_anim"
+                        ) { target ->
                             Text(
-                                text = String.format(Locale.getDefault(), "%02d", targetSecs),
+                                text = String.format(Locale.getDefault(), "%02d", target.second),
                                 style = MaterialTheme.typography.displayMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
@@ -224,14 +226,18 @@ fun CircularSlider(
     maxValue: Int = 30
 ) {
     var center by remember { mutableStateOf(Offset.Zero) }
-    var currentAngle by remember { mutableFloatStateOf(if (maxValue > 0) (value.toFloat() / maxValue) * 360f else 0f) }
     
-    // Sync currentAngle if value is changed externally
+    val startAngle = 135f
+    val maxSweep = 270f
+    
+    var currentSweep by remember { mutableFloatStateOf(if (maxValue > 0) (value.toFloat() / maxValue) * maxSweep else 0f) }
+    
+    // Sync currentSweep if value is changed externally
     LaunchedEffect(value) {
         if (maxValue > 0) {
-            val targetAngle = (value.toFloat() / maxValue) * 360f
-            if (Math.abs(targetAngle - currentAngle) > 1f) {
-                currentAngle = targetAngle
+            val targetSweep = (value.toFloat() / maxValue) * maxSweep
+            if (Math.abs(targetSweep - currentSweep) > 1f) {
+                currentSweep = targetSweep
             }
         }
     }
@@ -251,29 +257,42 @@ fun CircularSlider(
                 .pointerInput(Unit) {
                     detectDragGestures { change, _ ->
                         val touchAngle = atan2(change.position.y - center.y, change.position.x - center.x)
-                        var angle = Math.toDegrees(touchAngle.toDouble()).toFloat() + 90f
-                        if (angle < 0) angle += 360f
+                        var angleInDegrees = Math.toDegrees(touchAngle.toDouble()).toFloat()
+                        if (angleInDegrees < 0) angleInDegrees += 360f
                         
-                        // Prevent jumping from 360 to 0 and vice versa
-                        val currentMod = currentAngle % 360f
-                        var delta = angle - currentMod
-                        if (delta > 180f) delta -= 360f
-                        if (delta < -180f) delta += 360f
+                        var relativeAngle = angleInDegrees - startAngle
+                        if (relativeAngle < 0) relativeAngle += 360f
                         
-                        val newTotalAngle = (currentAngle + delta).coerceIn(0f, 360f)
-                        currentAngle = newTotalAngle
+                        if (relativeAngle > maxSweep) {
+                            relativeAngle = if (relativeAngle < maxSweep + (360f - maxSweep) / 2) {
+                                maxSweep
+                            } else {
+                                0f
+                            }
+                        }
                         
-                        val newValue = ((currentAngle / 360f) * maxValue).roundToInt().coerceIn(0, maxValue)
+                        val newValue = ((relativeAngle / maxSweep) * maxValue).roundToInt().coerceIn(0, maxValue)
                         onValueChange(newValue)
                     }
                 }
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
                         val touchAngle = atan2(offset.y - center.y, offset.x - center.x)
-                        var angle = Math.toDegrees(touchAngle.toDouble()).toFloat() + 90f
-                        if (angle < 0) angle += 360f
+                        var angleInDegrees = Math.toDegrees(touchAngle.toDouble()).toFloat()
+                        if (angleInDegrees < 0) angleInDegrees += 360f
                         
-                        val newValue = ((angle / 360f) * maxValue).roundToInt().coerceIn(0, maxValue)
+                        var relativeAngle = angleInDegrees - startAngle
+                        if (relativeAngle < 0) relativeAngle += 360f
+                        
+                        if (relativeAngle > maxSweep) {
+                            relativeAngle = if (relativeAngle < maxSweep + (360f - maxSweep) / 2) {
+                                maxSweep
+                            } else {
+                                0f
+                            }
+                        }
+                        
+                        val newValue = ((relativeAngle / maxSweep) * maxValue).roundToInt().coerceIn(0, maxValue)
                         onValueChange(newValue)
                     }
                 }
@@ -281,33 +300,40 @@ fun CircularSlider(
             center = Offset(size.width / 2, size.height / 2)
             val strokeWidth = 28.dp.toPx()
             val radius = size.minDimension / 2 - strokeWidth / 2
+            
+            val topLeftOffset = Offset(center.x - radius, center.y - radius)
+            val arcSize = Size(radius * 2, radius * 2)
 
             // Track
-            drawCircle(
+            drawArc(
                 color = trackColor.copy(alpha = 0.5f),
-                radius = radius,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                startAngle = startAngle,
+                sweepAngle = maxSweep,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                size = arcSize,
+                topLeft = topLeftOffset
             )
 
-            // Progress Gradient
-            val sweepAngle = currentAngle
-            if (sweepAngle > 0f) {
+            // Progress
+            if (currentSweep > 0f) {
                 drawArc(
-                    brush = Brush.sweepGradient(
+                    brush = Brush.linearGradient(
                         colors = gradientColors,
-                        center = center
+                        start = Offset(center.x - radius, center.y + radius),
+                        end = Offset(center.x + radius, center.y - radius)
                     ),
-                    startAngle = -90f,
-                    sweepAngle = sweepAngle,
+                    startAngle = startAngle,
+                    sweepAngle = currentSweep,
                     useCenter = false,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-                    size = Size(radius * 2, radius * 2),
-                    topLeft = Offset(center.x - radius, center.y - radius)
+                    size = arcSize,
+                    topLeft = topLeftOffset
                 )
             }
             
             // Thumb
-            val thumbAngle = Math.toRadians((sweepAngle - 90).toDouble())
+            val thumbAngle = Math.toRadians((startAngle + currentSweep).toDouble())
             val thumbX = center.x + radius * cos(thumbAngle).toFloat()
             val thumbY = center.y + radius * sin(thumbAngle).toFloat()
             
@@ -337,13 +363,14 @@ fun CircularSlider(
                 targetState = value,
                 transitionSpec = {
                     if (targetState > initialState) {
-                        slideInVertically { height -> height } + fadeIn() togetherWith
-                        slideOutVertically { height -> -height } + fadeOut()
+                        (slideInVertically { height -> height } + fadeIn()) togetherWith
+                        (slideOutVertically { height -> -height } + fadeOut())
                     } else {
-                        slideInVertically { height -> -height } + fadeIn() togetherWith
-                        slideOutVertically { height -> height } + fadeOut()
+                        (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                        (slideOutVertically { height -> height } + fadeOut())
                     }.using(SizeTransform(clip = false))
-                }
+                },
+                label = "slider_value_anim"
             ) { targetValue ->
                 Text(
                     text = "$targetValue",
