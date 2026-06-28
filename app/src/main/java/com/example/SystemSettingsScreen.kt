@@ -45,6 +45,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -850,36 +851,84 @@ suspend fun sendFeedbackToTelegram(context: Context, feedback: String, imageUris
             }
             
             var imagesSuccess = true
-            for (uri in imageUris) {
-                try {
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    val bytes = inputStream?.readBytes()
-                    inputStream?.close()
-                    if (bytes != null) {
-                        val multipartBuilder = MultipartBody.Builder()
-                            .setType(MultipartBody.FORM)
-                            .addFormDataPart("chat_id", chatId)
-                            
-                        if (threadId.isNotEmpty()) {
-                            multipartBuilder.addFormDataPart("message_thread_id", threadId)
-                        }
-
-                        val requestBody = multipartBuilder
-                            .addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
-                            .build()
-                        val photoRequest = Request.Builder()
-                            .url("https://api.telegram.org/bot$token/sendPhoto")
-                            .post(requestBody)
-                            .build()
-                        client.newCall(photoRequest).execute().use { photoResponse ->
-                            if (!photoResponse.isSuccessful) {
-                                imagesSuccess = false
+            if (imageUris.isNotEmpty()) {
+                if (imageUris.size == 1) {
+                    try {
+                        val uri = imageUris.first()
+                        val inputStream = context.contentResolver.openInputStream(uri)
+                        val bytes = inputStream?.readBytes()
+                        inputStream?.close()
+                        if (bytes != null) {
+                            val multipartBuilder = MultipartBody.Builder()
+                                .setType(MultipartBody.FORM)
+                                .addFormDataPart("chat_id", chatId)
+                                
+                            if (threadId.isNotEmpty()) {
+                                multipartBuilder.addFormDataPart("message_thread_id", threadId)
+                            }
+    
+                            val requestBody = multipartBuilder
+                                .addFormDataPart("photo", "screenshot_${System.currentTimeMillis()}.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
+                                .build()
+                            val photoRequest = Request.Builder()
+                                .url("https://api.telegram.org/bot$token/sendPhoto")
+                                .post(requestBody)
+                                .build()
+                            client.newCall(photoRequest).execute().use { photoResponse ->
+                                if (!photoResponse.isSuccessful) {
+                                    imagesSuccess = false
+                                }
                             }
                         }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        imagesSuccess = false
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    imagesSuccess = false
+                } else {
+                    val chunks = imageUris.chunked(10)
+                    for (chunk in chunks) {
+                        try {
+                            val mediaArray = JSONArray()
+                            val multipartBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
+                            multipartBuilder.addFormDataPart("chat_id", chatId)
+                            if (threadId.isNotEmpty()) {
+                                multipartBuilder.addFormDataPart("message_thread_id", threadId)
+                            }
+                            
+                            for ((index, uri) in chunk.withIndex()) {
+                                val inputStream = context.contentResolver.openInputStream(uri)
+                                val bytes = inputStream?.readBytes()
+                                inputStream?.close()
+                                if (bytes != null) {
+                                    val attachName = "photo$index"
+                                    val mediaObj = JSONObject()
+                                    mediaObj.put("type", "photo")
+                                    mediaObj.put("media", "attach://$attachName")
+                                    mediaArray.put(mediaObj)
+                                    
+                                    multipartBuilder.addFormDataPart(attachName, "screenshot_$index.jpg", RequestBody.create("image/jpeg".toMediaType(), bytes))
+                                }
+                            }
+                            
+                            if (mediaArray.length() > 0) {
+                                multipartBuilder.addFormDataPart("media", mediaArray.toString())
+                                val requestBody = multipartBuilder.build()
+                                val mediaGroupRequest = Request.Builder()
+                                    .url("https://api.telegram.org/bot$token/sendMediaGroup")
+                                    .post(requestBody)
+                                    .build()
+                                    
+                                client.newCall(mediaGroupRequest).execute().use { response ->
+                                    if (!response.isSuccessful) {
+                                        imagesSuccess = false
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            imagesSuccess = false
+                        }
+                    }
                 }
             }
             

@@ -48,6 +48,45 @@ class ShortsBlockerService : AccessibilityService() {
     private var checkJob: Job? = null
     private val isChecking = java.util.concurrent.atomic.AtomicBoolean(false)
     
+    private var lastReliefUpdateTime = 0L
+
+    private fun handleReliefTime(currentTime: Long): Boolean {
+        val dailyReliefMinutes = sharedPreferences?.getInt("daily_relief_minutes", 0) ?: 0
+        if (dailyReliefMinutes <= 0) return false
+        
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val today = sdf.format(java.util.Date(currentTime))
+        
+        var lastDate = sharedPreferences?.getString("last_relief_date", "") ?: ""
+        var usedReliefMs = sharedPreferences?.getLong("used_relief_ms", 0L) ?: 0L
+        
+        if (today != lastDate) {
+            usedReliefMs = 0L
+            lastDate = today
+        }
+        
+        val delta = if (lastReliefUpdateTime > 0 && currentTime - lastReliefUpdateTime < 5000L) {
+            currentTime - lastReliefUpdateTime
+        } else {
+            0L
+        }
+        lastReliefUpdateTime = currentTime
+        
+        if (delta > 0) {
+            usedReliefMs += delta
+            sharedPreferences?.edit()?.apply {
+                putString("last_relief_date", lastDate)
+                putLong("used_relief_ms", usedReliefMs)
+                apply()
+            }
+        } else if (lastDate != sharedPreferences?.getString("last_relief_date", "")) {
+            sharedPreferences?.edit()?.putString("last_relief_date", lastDate)?.putLong("used_relief_ms", 0L)?.apply()
+        }
+        
+        val totalReliefMs = dailyReliefMinutes * 60 * 1000L
+        return usedReliefMs < totalReliefMs
+    }
+
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
@@ -78,8 +117,9 @@ class ShortsBlockerService : AccessibilityService() {
                                         
                                         isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                                         if (isWatchingShorts) {
+                                            val isReliefActive = handleReliefTime(currentTime)
                                             lastShortsActivityTime = currentTime
-                                            if (currentTime >= lastUnlockTime + sessionCooldownMs) {
+                                            if (!isReliefActive && currentTime >= lastUnlockTime + sessionCooldownMs) {
                                                 val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                                                 val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
                                                 val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
@@ -456,6 +496,7 @@ class ShortsBlockerService : AccessibilityService() {
 
                         if (isAddictiveMedia) {
                             val currentTimeMs = System.currentTimeMillis()
+                            val isReliefActive = handleReliefTime(currentTimeMs)
                             lastShortsActivityTime = currentTimeMs
                             val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                             val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
@@ -473,7 +514,7 @@ class ShortsBlockerService : AccessibilityService() {
                             val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
                             val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
                             
-                            if (currentTimeMs >= lastUnlockTime + sessionCooldownMs) {
+                            if (!isReliefActive && currentTimeMs >= lastUnlockTime + sessionCooldownMs) {
                                 if (currentTimeMs < lastBackNavigationTime + BACK_NAVIGATION_COOLDOWN_MS) {
                                     return@launch
                                 }
