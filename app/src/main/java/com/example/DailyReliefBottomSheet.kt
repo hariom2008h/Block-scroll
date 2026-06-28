@@ -1,6 +1,8 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -14,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -21,6 +25,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -56,16 +62,19 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
         mutableIntStateOf(sharedPrefs.getInt("daily_relief_minutes", 0))
     }
 
-    val usedReliefMs = remember {
-        sharedPrefs.getLong("used_relief_ms", 0L)
-    }
-    
-    val lastReliefDate = remember {
-        sharedPrefs.getString("last_relief_date", "") ?: ""
+    var usedReliefMs by remember { mutableLongStateOf(sharedPrefs.getLong("used_relief_ms", 0L)) }
+    var lastReliefDate by remember { mutableStateOf(sharedPrefs.getString("last_relief_date", "") ?: "") }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            usedReliefMs = sharedPrefs.getLong("used_relief_ms", 0L)
+            lastReliefDate = sharedPrefs.getString("last_relief_date", "") ?: ""
+        }
     }
 
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val today = sdf.format(Date())
+    val today = remember(usedReliefMs) { sdf.format(Date()) }
     
     val currentUsedMs = if (today == lastReliefDate) usedReliefMs else 0L
     val remainingMs = maxOf(0L, (reliefMinutes * 60 * 1000L) - currentUsedMs)
@@ -108,7 +117,7 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
                 sharedPrefs.edit().putInt("daily_relief_minutes", newValue).apply()
             },
             modifier = Modifier
-                .size(220.dp)
+                .size(240.dp)
                 .padding(16.dp),
             maxValue = 30
         )
@@ -116,26 +125,77 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
         
         Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(24.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "Time Remaining Today",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (reliefMinutes == 0) "Disabled" else String.format("%02d:%02d", remainingMinutes, remainingSeconds),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (reliefMinutes == 0) {
+                    Text(
+                        text = "Disabled",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AnimatedContent(
+                            targetState = remainingMinutes,
+                            transitionSpec = {
+                                if (targetState < initialState) {
+                                    slideInVertically { height -> -height } + fadeIn() togetherWith
+                                    slideOutVertically { height -> height } + fadeOut()
+                                } else {
+                                    slideInVertically { height -> height } + fadeIn() togetherWith
+                                    slideOutVertically { height -> -height } + fadeOut()
+                                }.using(SizeTransform(clip = false))
+                            }
+                        ) { targetMins ->
+                            Text(
+                                text = String.format(Locale.getDefault(), "%02d", targetMins),
+                                style = MaterialTheme.typography.displayMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = ":",
+                            style = MaterialTheme.typography.displayMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                        AnimatedContent(
+                            targetState = remainingSeconds,
+                            transitionSpec = {
+                                if (targetState < initialState) {
+                                    slideInVertically { height -> -height } + fadeIn() togetherWith
+                                    slideOutVertically { height -> height } + fadeOut()
+                                } else {
+                                    slideInVertically { height -> height } + fadeIn() togetherWith
+                                    slideOutVertically { height -> -height } + fadeOut()
+                                }.using(SizeTransform(clip = false))
+                            }
+                        ) { targetSecs ->
+                            Text(
+                                text = String.format(Locale.getDefault(), "%02d", targetSecs),
+                                style = MaterialTheme.typography.displayMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
         }
         
@@ -143,8 +203,13 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
         
         Button(
             onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
         ) {
             Text("Done")
         }
@@ -156,12 +221,28 @@ fun CircularSlider(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    maxValue: Int = 15
+    maxValue: Int = 30
 ) {
     var center by remember { mutableStateOf(Offset.Zero) }
+    var currentAngle by remember { mutableFloatStateOf(if (maxValue > 0) (value.toFloat() / maxValue) * 360f else 0f) }
+    
+    // Sync currentAngle if value is changed externally
+    LaunchedEffect(value) {
+        if (maxValue > 0) {
+            val targetAngle = (value.toFloat() / maxValue) * 360f
+            if (Math.abs(targetAngle - currentAngle) > 1f) {
+                currentAngle = targetAngle
+            }
+        }
+    }
+
     val primaryColor = MaterialTheme.colorScheme.primary
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+    val gradientColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.tertiary
+    )
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(
@@ -172,7 +253,17 @@ fun CircularSlider(
                         val touchAngle = atan2(change.position.y - center.y, change.position.x - center.x)
                         var angle = Math.toDegrees(touchAngle.toDouble()).toFloat() + 90f
                         if (angle < 0) angle += 360f
-                        val newValue = ((angle / 360f) * maxValue).roundToInt().coerceIn(0, maxValue)
+                        
+                        // Prevent jumping from 360 to 0 and vice versa
+                        val currentMod = currentAngle % 360f
+                        var delta = angle - currentMod
+                        if (delta > 180f) delta -= 360f
+                        if (delta < -180f) delta += 360f
+                        
+                        val newTotalAngle = (currentAngle + delta).coerceIn(0f, 360f)
+                        currentAngle = newTotalAngle
+                        
+                        val newValue = ((currentAngle / 360f) * maxValue).roundToInt().coerceIn(0, maxValue)
                         onValueChange(newValue)
                     }
                 }
@@ -181,27 +272,31 @@ fun CircularSlider(
                         val touchAngle = atan2(offset.y - center.y, offset.x - center.x)
                         var angle = Math.toDegrees(touchAngle.toDouble()).toFloat() + 90f
                         if (angle < 0) angle += 360f
+                        
                         val newValue = ((angle / 360f) * maxValue).roundToInt().coerceIn(0, maxValue)
                         onValueChange(newValue)
                     }
                 }
         ) {
             center = Offset(size.width / 2, size.height / 2)
-            val strokeWidth = 24.dp.toPx()
+            val strokeWidth = 28.dp.toPx()
             val radius = size.minDimension / 2 - strokeWidth / 2
 
             // Track
             drawCircle(
-                color = trackColor,
+                color = trackColor.copy(alpha = 0.5f),
                 radius = radius,
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
             )
 
-            // Progress
-            val sweepAngle = if (maxValue > 0) (value.toFloat() / maxValue) * 360f else 0f
-            if (value > 0) {
+            // Progress Gradient
+            val sweepAngle = currentAngle
+            if (sweepAngle > 0f) {
                 drawArc(
-                    color = primaryColor,
+                    brush = Brush.sweepGradient(
+                        colors = gradientColors,
+                        center = center
+                    ),
                     startAngle = -90f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
@@ -216,14 +311,21 @@ fun CircularSlider(
             val thumbX = center.x + radius * cos(thumbAngle).toFloat()
             val thumbY = center.y + radius * sin(thumbAngle).toFloat()
             
+            // Outer glow of thumb
+            drawCircle(
+                color = primaryColor.copy(alpha = 0.2f),
+                radius = 24.dp.toPx(),
+                center = Offset(thumbX, thumbY)
+            )
+            
             drawCircle(
                 color = onPrimaryColor,
-                radius = 16.dp.toPx(),
+                radius = 18.dp.toPx(),
                 center = Offset(thumbX, thumbY)
             )
             drawCircle(
                 color = primaryColor,
-                radius = 16.dp.toPx(),
+                radius = 18.dp.toPx(),
                 center = Offset(thumbX, thumbY),
                 style = Stroke(width = 4.dp.toPx())
             )
@@ -231,16 +333,31 @@ fun CircularSlider(
         
         // Text in center
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        slideInVertically { height -> height } + fadeIn() togetherWith
+                        slideOutVertically { height -> -height } + fadeOut()
+                    } else {
+                        slideInVertically { height -> -height } + fadeIn() togetherWith
+                        slideOutVertically { height -> height } + fadeOut()
+                    }.using(SizeTransform(clip = false))
+                }
+            ) { targetValue ->
+                Text(
+                    text = "$targetValue",
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             Text(
-                text = "$value",
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "mins",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "MINS",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 2.sp
             )
         }
     }
