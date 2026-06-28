@@ -31,17 +31,6 @@ import android.app.NotificationManager
 import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import android.os.PowerManager
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
 
 class ShortsBlockerService : AccessibilityService() {
     private val NOTIFICATION_ID = 4040
@@ -55,10 +44,6 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastUnlockTime = 0L
     private var lastShortsActivityTime = 0L
-    private var lastScrollTime = 0L
-    
-    private var counterOverlayView: View? = null
-    private var isCounterOverlayShowing = false
     
     private var checkJob: Job? = null
     private val isChecking = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -439,9 +424,6 @@ class ShortsBlockerService : AccessibilityService() {
                                     if (isOverlayShowing) {
                                         mainHandler.post { removeFrictionOverlay() }
                                     }
-                                    if (isCounterOverlayShowing) {
-                                        mainHandler.post { removeCounterOverlay() }
-                                    }
                                     try { activeRoot.recycle() } catch (e: Exception) {}
                                     return@launch
                                 }
@@ -475,23 +457,6 @@ class ShortsBlockerService : AccessibilityService() {
                         if (isAddictiveMedia) {
                             val currentTimeMs = System.currentTimeMillis()
                             lastShortsActivityTime = currentTimeMs
-                            
-                            val showCounter = sharedPreferences?.getBoolean("show_counter_overlay", false) ?: false
-                            
-                            // Detect scrolls to increment counter
-                            if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
-                                if (currentTimeMs - lastScrollTime > 1500L) {
-                                    lastScrollTime = currentTimeMs
-                                    val currentCount = sharedPreferences?.getInt("reels_scrolled_count", 0) ?: 0
-                                    val newCount = currentCount + 1
-                                    sharedPreferences?.edit()?.putInt("reels_scrolled_count", newCount)?.apply()
-                                    
-                                    if (showCounter) {
-                                        mainHandler.post { showCounterOverlay(newCount) }
-                                    }
-                                }
-                            }
-                            
                             val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                             val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
                             val strictModeSC = sharedPreferences?.getBoolean("strict_mode_snapchat", false) ?: false
@@ -519,22 +484,11 @@ class ShortsBlockerService : AccessibilityService() {
                                 } else {
                                     showFrictionOverlay()
                                 }
-                            } else {
-                                if (showCounter) {
-                                    val currentCount = sharedPreferences?.getInt("reels_scrolled_count", 0) ?: 0
-                                    mainHandler.post { showCounterOverlay(currentCount) }
-                                } else if (isCounterOverlayShowing) {
-                                    mainHandler.post { removeCounterOverlay() }
-                                }
                             }
                         } else if (isOverlayShowing && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                             // Only remove if it's a WINDOW_STATE_CHANGED (e.g. going back to the home feed)
                             // We don't do this on CONTENT_CHANGED to prevent flickering while shorts is still loading.
                             removeFrictionOverlay()
-                        }
-                        
-                        if (!isAddictiveMedia && isCounterOverlayShowing) {
-                             mainHandler.post { removeCounterOverlay() }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -902,62 +856,6 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
-    private fun showCounterOverlay(count: Int) {
-        if (isCounterOverlayShowing && counterOverlayView != null) {
-            // Update text if already showing
-            val composeView = counterOverlayView as? androidx.compose.ui.platform.ComposeView
-            composeView?.setContent {
-                CounterOverlay(count)
-            }
-            return
-        }
-        
-        if (!Settings.canDrawOverlays(this)) return
-
-        mainHandler.post {
-            if (isCounterOverlayShowing) return@post
-            
-            val layoutParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                android.graphics.PixelFormat.TRANSLUCENT
-            )
-            layoutParams.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            layoutParams.y = 100 // dp offset down from top roughly
-
-            val composeView = androidx.compose.ui.platform.ComposeView(this).apply {
-                setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-                setContent {
-                    CounterOverlay(count)
-                }
-            }
-
-            try {
-                windowManager.addView(composeView, layoutParams)
-                counterOverlayView = composeView
-                isCounterOverlayShowing = true
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    private fun removeCounterOverlay() {
-        mainHandler.post {
-            if (!isCounterOverlayShowing || counterOverlayView == null) return@post
-            try {
-                windowManager.removeView(counterOverlayView)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isCounterOverlayShowing = false
-                counterOverlayView = null
-            }
-        }
-    }
-
     private fun removeFrictionOverlay() {
         mainHandler.post {
             if (!isOverlayShowing || overlayView == null) return@post
@@ -976,37 +874,5 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onInterrupt() {
         removeFrictionOverlay()
-        removeCounterOverlay()
-    }
-}
-
-@Composable
-fun CounterOverlay(count: Int) {
-    Box(
-        modifier = Modifier
-            .padding(top = 32.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-                shape = RoundedCornerShape(24.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Warning,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Scrolled: $count",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }

@@ -591,9 +591,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     var enableFloatingTimer by remember {
         mutableStateOf(sharedPrefs.getBoolean("enable_floating_timer", false))
     }
-    var showCounterOverlay by remember {
-        mutableStateOf(sharedPrefs.getBoolean("show_counter_overlay", false))
-    }
 
     Column(
         modifier = modifier
@@ -720,34 +717,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
-            Text("Live Scroll Counter", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Show Counter on Screen", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        text = "Display a live count of how many shorts you've scrolled.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = showCounterOverlay,
-                    onCheckedChange = { checked ->
-                        showCounterOverlay = checked
-                        sharedPrefs.edit().putBoolean("show_counter_overlay", checked).apply()
-                    }
-                )
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
             Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
