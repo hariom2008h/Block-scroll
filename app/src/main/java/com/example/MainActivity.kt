@@ -274,12 +274,12 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
     
     val cooldownOptions = listOf(1, 5, 15, 30)
     var cooldownIndex by remember {
-        val mins = sharedPrefs.getInt("session_duration_minutes", 2)
+        val mins = sharedPrefs.getInt("session_duration_minutes", 5)
         val initialIdx = cooldownOptions.indexOfLast { it <= mins }.coerceAtLeast(0)
         mutableFloatStateOf(initialIdx.toFloat())
     }
     
-    var allowanceMins by remember { mutableFloatStateOf(sharedPrefs.getInt("daily_relief_minutes", 0).toFloat()) }
+    var allowanceMins by remember { mutableFloatStateOf(sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()) }
     var allowYt by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_youtube", true)) }
     var allowIg by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_instagram", true)) }
     var allowSnap by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_snapchat", true)) }
