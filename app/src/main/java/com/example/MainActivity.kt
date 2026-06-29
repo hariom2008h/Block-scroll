@@ -272,7 +272,7 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
     }
     
-    val cooldownOptions = listOf(1, 5, 15, 30)
+    val cooldownOptions = listOf(1, 2, 3, 4, 5)
     var cooldownIndex by remember {
         val mins = sharedPrefs.getInt("session_duration_minutes", 5)
         val initialIdx = cooldownOptions.indexOfLast { it <= mins }.coerceAtLeast(0)
@@ -624,8 +624,8 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             onValueChangeFinished = { 
                                 sharedPrefs.edit().putInt("session_duration_minutes", cooldownOptions[cooldownIndex.roundToInt()]).apply() 
                             },
-                            valueRange = 0f..3f,
-                            steps = 2,
+                            valueRange = 0f..4f,
+                            steps = 3,
                             thumb = {
                                 Box(
                                     modifier = Modifier
