@@ -279,7 +279,10 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         mutableFloatStateOf(initialIdx.toFloat())
     }
     
-    var showDailyRelief by remember { mutableStateOf(false) }
+    var allowanceMins by remember { mutableFloatStateOf(sharedPrefs.getInt("daily_relief_minutes", 0).toFloat()) }
+    var allowYt by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_youtube", true)) }
+    var allowIg by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_instagram", true)) }
+    var allowSnap by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_snapchat", true)) }
     
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var bypassCount by remember { mutableIntStateOf(sharedPrefs.getInt("bypass_count", 0)) }
@@ -492,51 +495,87 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                     modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
                 )
                 ElevatedCard(
-                    onClick = { showDailyRelief = true },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "Daily Relief Time",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Resets daily at midnight.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "${allowanceMins.roundToInt()} min",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                        
-                        val usedReliefMs = sharedPrefs.getLong("used_relief_ms", 0L)
-                        val totalReliefMs = sharedPrefs.getInt("daily_relief_minutes", 0) * 60 * 1000L
-                        val progress = if (totalReliefMs > 0) (usedReliefMs.toFloat() / totalReliefMs).coerceIn(0f, 1f) else 0f
-                        
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
-                            CircularProgressIndicator(
-                                progress = { 1f },
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                strokeWidth = 4.dp
-                            )
-                            CircularProgressIndicator(
-                                progress = { progress },
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.primary,
-                                strokeWidth = 4.dp,
-                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-                            )
+                        Text(
+                            text = "Daily limit for selected addictive apps.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                        Slider(
+                            value = allowanceMins,
+                            onValueChange = { 
+                                allowanceMins = it
+                                sharedPrefs.edit().putInt("daily_relief_minutes", it.roundToInt()).apply() 
+                            },
+                            valueRange = 0f..30f,
+                            steps = 29,
+                            thumb = {
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .height(28.dp)
+                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                                )
+                            },
+                            track = { sliderState ->
+                                SliderDefaults.Track(
+                                    colors = SliderDefaults.colors(
+                                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        activeTickColor = Color.Transparent,
+                                        inactiveTickColor = Color.Transparent
+                                    ),
+                                    sliderState = sliderState,
+                                    modifier = Modifier.height(16.dp)
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Target Apps",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AppSelectionChip(label = "YouTube", isSelected = allowYt, onToggle = {
+                                allowYt = it
+                                sharedPrefs.edit().putBoolean("allowance_youtube", it).apply()
+                            }, modifier = Modifier.weight(1f))
+                            AppSelectionChip(label = "Instagram", isSelected = allowIg, onToggle = {
+                                allowIg = it
+                                sharedPrefs.edit().putBoolean("allowance_instagram", it).apply()
+                            }, modifier = Modifier.weight(1f))
+                            AppSelectionChip(label = "Snapchat", isSelected = allowSnap, onToggle = {
+                                allowSnap = it
+                                sharedPrefs.edit().putBoolean("allowance_snapchat", it).apply()
+                            }, modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -565,20 +604,20 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
-                            Surface(
+                            Text(
+                                text = "${cooldownOptions[cooldownIndex.roundToInt()]} min",
                                 color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = "${cooldownOptions[cooldownIndex.roundToInt()]} min",
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
+                        Text(
+                            text = "How long until you are asked for standard password again.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
+                        @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
                         Slider(
                             value = cooldownIndex,
                             onValueChange = { cooldownIndex = it },
@@ -587,28 +626,50 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             },
                             valueRange = 0f..3f,
                             steps = 2,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                activeTickColor = MaterialTheme.colorScheme.onPrimary,
-                                inactiveTickColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                            )
-                        )
-                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            cooldownOptions.forEach { mins ->
-                                Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                            thumb = {
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .height(28.dp)
+                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                                )
+                            },
+                            track = { sliderState ->
+                                SliderDefaults.Track(
+                                    colors = SliderDefaults.colors(
+                                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        activeTickColor = MaterialTheme.colorScheme.onPrimary,
+                                        inactiveTickColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                    ),
+                                    sliderState = sliderState,
+                                    modifier = Modifier.height(16.dp)
+                                )
                             }
-                        }
+                        )
                     }
                 }
             }
             
         }
     }
-    
-    if (showDailyRelief) {
-        DailyReliefBottomSheet(onDismiss = { showDailyRelief = false })
+}
+
+@Composable
+fun AppSelectionChip(label: String, isSelected: Boolean, onToggle: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.clickable { onToggle(!isSelected) }
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 10.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
