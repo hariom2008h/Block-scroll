@@ -36,6 +36,11 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.roundToInt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -262,12 +267,19 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
 
+    val CobaltBlue = Color(0xFF0047AB)
+    val TextNavy = Color(0xFF0A1128)
+    val SurfaceLight = Color(0xFFF5F7FA)
+
     var password by remember { 
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
     }
     
-    var sessionDuration by remember {
-        mutableFloatStateOf(sharedPrefs.getInt("session_duration_minutes", 2).toFloat())
+    val cooldownOptions = listOf(1, 5, 15, 30)
+    var cooldownIndex by remember {
+        val mins = sharedPrefs.getInt("session_duration_minutes", 2)
+        val initialIdx = cooldownOptions.indexOfLast { it <= mins }.coerceAtLeast(0)
+        mutableFloatStateOf(initialIdx.toFloat())
     }
     
     var showDailyRelief by remember { mutableStateOf(false) }
@@ -286,316 +298,359 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        CenterAlignedTopAppBar(
-            title = {
-                Text(
-                    text = "Shorts Blocker",
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    softWrap = false
-                )
-            },
-            actions = {
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = "System Access Settings",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                titleContentColor = MaterialTheme.colorScheme.primary,
-            )
-        )
+    var selectedBottomNavTab by remember { mutableIntStateOf(0) }
 
-        Column(
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = SurfaceLight,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "Shorts Blocker",
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CobaltBlue
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { /* Info action */ }) {
+                        Icon(Icons.Rounded.Info, contentDescription = "Info", tint = CobaltBlue)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = CobaltBlue)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = SurfaceLight
+                )
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Rounded.Shield, contentDescription = "Home") },
+                    label = { Text("Home") },
+                    selected = selectedBottomNavTab == 0,
+                    onClick = { selectedBottomNavTab = 0 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = CobaltBlue,
+                        selectedTextColor = CobaltBlue,
+                        indicatorColor = CobaltBlue.copy(alpha = 0.1f),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Rounded.List, contentDescription = "Rules") },
+                    label = { Text("Rules") },
+                    selected = selectedBottomNavTab == 1,
+                    onClick = { onNavigateToSettings() },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = CobaltBlue,
+                        selectedTextColor = CobaltBlue,
+                        indicatorColor = CobaltBlue.copy(alpha = 0.1f),
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+            }
+        }
+    ) { innerPadding ->
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 32.dp)
         ) {
-            
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Surface(
+                        color = CobaltBlue.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = "$bypassCount Times Bypassed",
+                            color = CobaltBlue,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 8.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
+                            .fillMaxWidth()
                             .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                shape = androidx.compose.foundation.shape.CircleShape
-                            ),
+                                Brush.verticalGradient(
+                                    colors = listOf(Color(0xFFE6EEFF), Color.White)
+                                )
+                            )
+                            .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Shield,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp)
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Rounded.Shield,
+                                contentDescription = null,
+                                tint = CobaltBlue,
+                                modifier = Modifier.size(72.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Active Protection",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = CobaltBlue
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Friction is enabled for selected apps.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextNavy.copy(alpha = 0.7f)
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Active Protection",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Text(
-                        text = "Friction is enabled for selected apps",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    androidx.compose.material3.Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
-                    ) {
+                }
+            }
+
+            item {
+                Text(
+                    text = "Security",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CobaltBlue,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
+                )
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { isPasswordSectionExpanded = !isPasswordSectionExpanded }
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.LockOpen, 
-                                        contentDescription = null, 
-                                        modifier = Modifier.size(20.dp), 
-                                        tint = MaterialTheme.colorScheme.primary
+                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = CobaltBlue)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Master Password",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextNavy
+                                )
+                                Text(
+                                    text = "Required when an addictive scroll is intercepted.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            IconButton(onClick = { isPasswordSectionExpanded = !isPasswordSectionExpanded }) {
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = CobaltBlue)
+                            }
+                        }
+
+                        androidx.compose.animation.AnimatedVisibility(visible = isPasswordSectionExpanded) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = { password = it },
+                                    label = { Text("Password") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = CobaltBlue,
+                                        focusedLabelColor = CobaltBlue
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("$bypassCount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                val hasMinLength = password.length >= 6
+                                val hasUpper = password.any { it.isUpperCase() }
+                                val hasLower = password.any { it.isLowerCase() }
+                                val hasDigit = password.any { it.isDigit() }
+                                val hasSpecial = password.any { !it.isLetterOrDigit() }
+                                val hasNoRepeats = password.isNotEmpty() && password.toSet().size == password.length
+                                val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
+
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    PasswordCriterion(text = "At least 6 characters", met = hasMinLength)
+                                    PasswordCriterion(text = "Contains uppercase letter", met = hasUpper)
+                                    PasswordCriterion(text = "Contains lowercase letter", met = hasLower)
+                                    PasswordCriterion(text = "Contains a number", met = hasDigit)
+                                    PasswordCriterion(text = "Contains a special symbol", met = hasSpecial)
+                                    PasswordCriterion(text = "No repeated characters", met = hasNoRepeats)
                                 }
-                                Text("Times Bypassed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = {
+                                        sharedPrefs.edit().putString("master_password", password).apply()
+                                        Toast.makeText(context, "Password Saved securely", Toast.LENGTH_SHORT).show()
+                                        isPasswordSectionExpanded = false
+                                    },
+                                    enabled = isValidPassword,
+                                    modifier = Modifier.align(Alignment.End),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CobaltBlue)
+                                ) {
+                                    Text("Save Credentials")
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Section 2: Security
-            Text(
-                text = "Security",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                softWrap = false,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+            item {
+                Text(
+                    text = "Daily Allowance",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CobaltBlue,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
                 )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                ElevatedCard(
+                    onClick = { showDailyRelief = true },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                 ) {
-                    
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable { isPasswordSectionExpanded = !isPasswordSectionExpanded },
+                        modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Master Password",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            softWrap = false,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { isPasswordSectionExpanded = !isPasswordSectionExpanded }) {
-                            Icon(
-                                imageVector = if (isPasswordSectionExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.Edit,
-                                contentDescription = if (isPasswordSectionExpanded) "Collapse" else "Edit Password"
+                        Icon(Icons.Rounded.Timer, contentDescription = null, tint = CobaltBlue, modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Daily Relief Time",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextNavy
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Resets daily at midnight.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
                             )
                         }
-                    }
-                    
-                    val hasExistingPassword = remember { sharedPrefs.getString("master_password", "")?.isNotEmpty() == true }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "This password will be required when an addictive scroll is intercepted. Make it complex.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (!isPasswordSectionExpanded && hasExistingPassword) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Password is set and active.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    androidx.compose.animation.AnimatedVisibility(visible = isPasswordSectionExpanded) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it },
-                                label = { Text("Password", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false) },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
+                        
+                        val usedReliefMs = sharedPrefs.getLong("used_relief_ms", 0L)
+                        val totalReliefMs = sharedPrefs.getInt("daily_relief_minutes", 0) * 60 * 1000L
+                        val progress = if (totalReliefMs > 0) (usedReliefMs.toFloat() / totalReliefMs).coerceIn(0f, 1f) else 0f
+                        
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
+                            CircularProgressIndicator(
+                                progress = { 1f },
+                                modifier = Modifier.fillMaxSize(),
+                                color = CobaltBlue.copy(alpha = 0.1f),
+                                strokeWidth = 4.dp
                             )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            val hasMinLength = password.length >= 6
-                            val hasUpper = password.any { it.isUpperCase() }
-                            val hasLower = password.any { it.isLowerCase() }
-                            val hasDigit = password.any { it.isDigit() }
-                            val hasSpecial = password.any { !it.isLetterOrDigit() }
-                            val hasNoRepeats = password.isNotEmpty() && password.toSet().size == password.length
-                            val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
-
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                PasswordCriterion(text = "At least 6 characters", met = hasMinLength)
-                                PasswordCriterion(text = "Contains uppercase letter", met = hasUpper)
-                                PasswordCriterion(text = "Contains lowercase letter", met = hasLower)
-                                PasswordCriterion(text = "Contains a number", met = hasDigit)
-                                PasswordCriterion(text = "Contains a special symbol", met = hasSpecial)
-                                PasswordCriterion(text = "No repeated characters", met = hasNoRepeats)
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = {
-                                    sharedPrefs.edit().putString("master_password", password).apply()
-                                    Toast.makeText(context, "Password Saved securely", Toast.LENGTH_SHORT).show()
-                                    isPasswordSectionExpanded = false
-                                },
-                                enabled = isValidPassword,
-                                modifier = Modifier.align(Alignment.End)
-                            ) {
-                                Text("Save Credentials")
-                            }
+                            CircularProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxSize(),
+                                color = CobaltBlue,
+                                strokeWidth = 4.dp,
+                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
                         }
                     }
                 }
             }
 
-            // Section: Session Cooldown
-            Text(
-                text = "Session Cooldown",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                softWrap = false,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+            item {
+                Text(
+                    text = "Session Cooldown",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = CobaltBlue,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
                 )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Post-Unlock Grace Period", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-                        Text("${sessionDuration.toInt()} min", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    }
-                    Text(
-                        text = "How long until you are asked for standard password again.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Slider(
-                        value = sessionDuration,
-                        onValueChange = { sessionDuration = it },
-                        onValueChangeFinished = {
-                            sharedPrefs.edit().putInt("session_duration_minutes", sessionDuration.toInt()).apply()
-                        },
-                        valueRange = 1f..5f,
-                        steps = 3
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Text("Daily Allowance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false, modifier = Modifier.padding(horizontal = 24.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Card(
-                onClick = { showDailyRelief = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Timer,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Daily Relief Time",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Post-Unlock Grace Period",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextNavy,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Surface(
+                                color = CobaltBlue,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "${cooldownOptions[cooldownIndex.roundToInt()]} min Selected",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Slider(
+                            value = cooldownIndex,
+                            onValueChange = { cooldownIndex = it },
+                            onValueChangeFinished = { 
+                                sharedPrefs.edit().putInt("session_duration_minutes", cooldownOptions[cooldownIndex.roundToInt()]).apply() 
+                            },
+                            valueRange = 0f..3f,
+                            steps = 2,
+                            colors = SliderDefaults.colors(
+                                thumbColor = CobaltBlue,
+                                activeTrackColor = CobaltBlue,
+                                inactiveTrackColor = CobaltBlue.copy(alpha = 0.2f),
+                                activeTickColor = Color.White,
+                                inactiveTickColor = CobaltBlue.copy(alpha = 0.5f)
+                            )
                         )
-                        Text(
-                            text = "Set daily uninterrupted watch time",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            cooldownOptions.forEach { mins ->
+                                Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontWeight = FontWeight.Medium)
+                            }
+                        }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            item {
+                Spacer(modifier = Modifier.height(48.dp))
+                Text(
+                    text = "Stay focused, save time.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.LightGray,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
     

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -44,6 +45,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontFamily
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -89,7 +94,7 @@ class DailyReliefViewModel(application: Application) : AndroidViewModel(applicat
     }
 }
 
-val CobaltBlue = Color(0xFF0047AB)
+val CobaltBlue = Color(0xFF002080)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,70 +165,22 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
                 value = reliefMinutes,
                 onValueChange = { viewModel.setReliefMinutes(it) },
                 modifier = Modifier
-                    .size(280.dp)
+                    .size(320.dp)
                     .padding(16.dp),
                 maxValue = 240 // Allow up to 4 hours (240 mins)
             )
             
             // Center content
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                HourglassIcon()
-                Spacer(modifier = Modifier.height(8.dp))
-                AnimatedNumberOdometer(value = reliefMinutes)
-                Text(
-                    text = "MINS",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 2.sp
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // Clean Info Display
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Time Remaining Today",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                if (reliefMinutes == 0) {
-                    Text(
-                        text = "Disabled",
-                        style = MaterialTheme.typography.displaySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        fontWeight = FontWeight.Bold
-                    )
-                } else {
-                    RemainingTimeDisplay(remainingMs = remainingMs)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Resets daily at midnight (12:00 AM)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CobaltBlue,
-                    fontWeight = FontWeight.Medium
-                )
-            }
+            CentralTextCounter(value = reliefMinutes)
         }
         
         Spacer(modifier = Modifier.height(32.dp))
         
         // Buttons Row
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -259,34 +216,49 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
                 }
             }
             
-            // Done Button
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 16.dp)
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+            // Center Digital Counter
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Done", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    text = String.format(Locale.getDefault(), "%02d:00", reliefMinutes),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = CobaltBlue
+                )
+                Text(
+                    text = "Mins Set",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            // Enable Now Toggle
-            FilledIconButton(
-                onClick = { viewModel.toggleReliefActive() },
-                modifier = Modifier.size(56.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (isReliefActive) CobaltBlue else CobaltBlue.copy(alpha = 0.1f),
-                    contentColor = if (isReliefActive) Color.White else CobaltBlue
-                )
-            ) {
-                Icon(
-                    if (isReliefActive) Icons.Rounded.Power else Icons.Rounded.PowerOff, 
-                    contentDescription = "Toggle Relief"
-                )
+            // ON/OFF Pill Button
+            if (isReliefActive) {
+                Button(
+                    onClick = { viewModel.toggleReliefActive() },
+                    modifier = Modifier.height(48.dp).width(80.dp),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CobaltBlue,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("ON", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { viewModel.toggleReliefActive() },
+                    modifier = Modifier.height(48.dp).width(80.dp),
+                    shape = RoundedCornerShape(50),
+                    border = BorderStroke(2.dp, CobaltBlue),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = CobaltBlue
+                    )
+                ) {
+                    Text("OFF", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
             }
         }
     }
@@ -316,85 +288,111 @@ fun HourglassIcon() {
 }
 
 @Composable
-fun AnimatedNumberOdometer(value: Int) {
-    AnimatedContent(
-        targetState = value,
-        transitionSpec = {
-            if (targetState > initialState) {
-                (slideInVertically(animationSpec = tween(150)) { height -> height } + fadeIn(animationSpec = tween(150))) togetherWith
-                (slideOutVertically(animationSpec = tween(150)) { height -> -height } + fadeOut(animationSpec = tween(150)))
-            } else {
-                (slideInVertically(animationSpec = tween(150)) { height -> -height } + fadeIn(animationSpec = tween(150))) togetherWith
-                (slideOutVertically(animationSpec = tween(150)) { height -> height } + fadeOut(animationSpec = tween(150)))
-            }.using(SizeTransform(clip = false))
-        },
-        label = "odometer_anim"
-    ) { targetValue ->
+fun CentralTextCounter(value: Int) {
+    var previousValue by remember { mutableIntStateOf(value) }
+    var velocity by remember { mutableFloatStateOf(0f) }
+    var lastUpdateTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(value) {
+        val now = System.currentTimeMillis()
+        val dt = (now - lastUpdateTime).coerceAtLeast(1L)
+        val diff = abs(value - previousValue)
+        
+        if (diff > 0 && diff < 50) {
+            velocity = (diff.toFloat() / dt) * 100f
+        } else if (diff == 0) {
+            velocity = 0f
+        }
+        previousValue = value
+        lastUpdateTime = now
+    }
+
+    LaunchedEffect(value) {
+        delay(100)
+        velocity = 0f
+    }
+
+    val animatedVelocity by animateFloatAsState(
+        targetValue = velocity.coerceIn(0f, 5f),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
+        label = "velocity"
+    )
+
+    var isSettled by remember { mutableStateOf(true) }
+    LaunchedEffect(value) {
+        isSettled = false
+        delay(150)
+        isSettled = true
+    }
+
+    val lockInScale by animateFloatAsState(
+        targetValue = if (isSettled) 1f else 0.95f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "lock_in_scale"
+    )
+
+    val stretchY = 1f + (animatedVelocity * 0.05f).coerceAtMost(0.2f)
+    val squashX = 1f - (animatedVelocity * 0.02f).coerceAtMost(0.1f)
+    val blurRadius = (animatedVelocity * 2f).coerceAtMost(10f).dp
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        HourglassIcon()
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        AnimatedContent(
+            targetState = value,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    (slideInVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { height -> height } + fadeIn(animationSpec = tween(150))) togetherWith
+                    (slideOutVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { height -> -height } + fadeOut(animationSpec = tween(150)))
+                } else {
+                    (slideInVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { height -> -height } + fadeIn(animationSpec = tween(150))) togetherWith
+                    (slideOutVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) { height -> height } + fadeOut(animationSpec = tween(150)))
+                }.using(SizeTransform(clip = false))
+            },
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = lockInScale * squashX
+                    scaleY = lockInScale * stretchY
+                    alpha = 1f - (animatedVelocity * 0.1f).coerceAtMost(0.4f)
+                }
+                .blur(radiusY = blurRadius, radiusX = 0.dp),
+            label = "odometer_anim"
+        ) { targetValue ->
+            Text(
+                text = "$targetValue",
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        
+        val breathingScale by animateFloatAsState(
+            targetValue = if (animatedVelocity > 0.5f) 1.05f else 1f,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+            label = "breathing_scale"
+        )
+        
         Text(
-            text = "$targetValue",
-            style = MaterialTheme.typography.displayLarge.copy(
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Black
-            ),
-            color = MaterialTheme.colorScheme.onSurface
+            text = "MINS",
+            modifier = Modifier.graphicsLayer {
+                scaleX = breathingScale
+                scaleY = breathingScale
+            },
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 2.sp
         )
     }
 }
 
-@Composable
-fun RemainingTimeDisplay(remainingMs: Long) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        AnimatedContent(
-            targetState = remainingMs,
-            transitionSpec = {
-                if (targetState < initialState) {
-                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
-                    (slideOutVertically { height -> height } + fadeOut())
-                } else {
-                    (slideInVertically { height -> height } + fadeIn()) togetherWith
-                    (slideOutVertically { height -> -height } + fadeOut())
-                }.using(SizeTransform(clip = false))
-            },
-            label = "minutes_anim"
-        ) { targetRemaining ->
-            val targetMins = (targetRemaining / 60000).toInt()
-            Text(
-                text = String.format(Locale.getDefault(), "%02d", targetMins),
-                style = MaterialTheme.typography.displayMedium,
-                color = CobaltBlue,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Text(
-            text = ":",
-            style = MaterialTheme.typography.displayMedium,
-            color = CobaltBlue,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
-        AnimatedContent(
-            targetState = remainingMs,
-            transitionSpec = {
-                if (targetState < initialState) {
-                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
-                    (slideOutVertically { height -> height } + fadeOut())
-                } else {
-                    (slideInVertically { height -> height } + fadeIn()) togetherWith
-                    (slideOutVertically { height -> -height } + fadeOut())
-                }.using(SizeTransform(clip = false))
-            },
-            label = "seconds_anim"
-        ) { targetRemaining ->
-            val targetSecs = ((targetRemaining % 60000) / 1000).toInt()
-            Text(
-                text = String.format(Locale.getDefault(), "%02d", targetSecs),
-                style = MaterialTheme.typography.displayMedium,
-                color = CobaltBlue,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
 
 @Composable
 fun CircularSlider(
@@ -421,7 +419,7 @@ fun CircularSlider(
 
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val gradientColors = listOf(
-        MaterialTheme.colorScheme.primary,
+        CobaltBlue.copy(alpha = 0.6f),
         CobaltBlue
     )
 
