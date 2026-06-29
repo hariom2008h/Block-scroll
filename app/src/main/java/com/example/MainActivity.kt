@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -267,10 +268,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
 
-    val CobaltBlue = Color(0xFF0047AB)
-    val TextNavy = Color(0xFF0A1128)
-    val SurfaceLight = Color(0xFFF5F7FA)
-
     var password by remember { 
         mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
     }
@@ -297,6 +294,10 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
+    val CobaltBlue = Color(0xFF0047AB)
+    val TextNavy = Color(0xFF0A1128)
+    val SurfaceLight = Color(0xFFF5F7FA)
 
     var selectedBottomNavTab by remember { mutableIntStateOf(0) }
 
@@ -368,62 +369,72 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Surface(
-                        color = CobaltBlue.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = "$bypassCount Times Bypassed",
-                            color = CobaltBlue,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-
-            item {
                 ElevatedCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(24.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 8.dp)
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = Color(0xFFEAE5F7)
+                    ),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color(0xFFE6EEFF), Color.White)
-                                )
-                            )
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .background(
+                                    color = Color(0xFFC4BCE1),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
                                 imageVector = Icons.Rounded.Shield,
                                 contentDescription = null,
                                 tint = CobaltBlue,
-                                modifier = Modifier.size(72.dp)
+                                modifier = Modifier.size(40.dp)
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Active Protection",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = CobaltBlue
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Friction is enabled for selected apps.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextNavy.copy(alpha = 0.7f)
-                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Active Protection",
+                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = TextNavy
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Friction is enabled for selected apps",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextNavy.copy(alpha = 0.7f)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(32.dp))
+                        
+                        androidx.compose.material3.Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color.White.copy(alpha = 0.5f)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.LockOpen, 
+                                        contentDescription = null, 
+                                        modifier = Modifier.size(20.dp), 
+                                        tint = CobaltBlue
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("$bypassCount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextNavy)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Times Bypassed", style = MaterialTheme.typography.bodySmall, color = TextNavy.copy(alpha = 0.7f))
+                            }
                         }
                     }
                 }
@@ -641,16 +652,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 }
             }
             
-            item {
-                Spacer(modifier = Modifier.height(48.dp))
-                Text(
-                    text = "Stay focused, save time.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.LightGray,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-            }
         }
     }
     
