@@ -295,13 +295,9 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val CobaltBlue = Color(0xFF0047AB)
-    val TextNavy = Color(0xFF0A1128)
-    val SurfaceLight = Color(0xFFF5F7FA)
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = SurfaceLight
+        containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -310,24 +306,22 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             item {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            text = "Shorts Blocker",
-                            fontWeight = FontWeight.ExtraBold,
-                            color = CobaltBlue
-                        )
-                    },
-                    actions = {
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = CobaltBlue)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = Color.Transparent
-                    ),
-                    windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 16.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.width(48.dp)) // To balance the settings icon
+                    Text(
+                        text = "Shorts Blocker",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
             
             item {
@@ -336,12 +330,12 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                     horizontalArrangement = Arrangement.End
                 ) {
                     Surface(
-                        color = CobaltBlue.copy(alpha = 0.1f),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "$bypassCount Times Bypassed",
-                            color = CobaltBlue,
+                            color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -354,39 +348,44 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 8.dp)
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(
-                                androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    colors = listOf(Color(0xFFE6EEFF), Color.White)
-                                )
-                            )
                             .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Rounded.Shield,
-                                contentDescription = null,
-                                tint = CobaltBlue,
-                                modifier = Modifier.size(72.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Shield,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "Active Protection",
                                 style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = CobaltBlue
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Friction is enabled for selected apps.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = TextNavy.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -397,38 +396,38 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 Text(
                     text = "Security",
                     style = MaterialTheme.typography.titleMedium,
-                    color = CobaltBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
                 )
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { isPasswordSectionExpanded = !isPasswordSectionExpanded }
                         ) {
-                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = CobaltBlue)
+                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Master Password",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextNavy
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Required when an addictive scroll is intercepted.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             IconButton(onClick = { isPasswordSectionExpanded = !isPasswordSectionExpanded }) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = CobaltBlue)
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
 
@@ -442,8 +441,8 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = CobaltBlue,
-                                        focusedLabelColor = CobaltBlue
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        focusedLabelColor = MaterialTheme.colorScheme.primary
                                     )
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -474,7 +473,7 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     },
                                     enabled = isValidPassword,
                                     modifier = Modifier.align(Alignment.End),
-                                    colors = ButtonDefaults.buttonColors(containerColor = CobaltBlue)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
                                     Text("Save Credentials")
                                 }
@@ -488,35 +487,35 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 Text(
                     text = "Daily Allowance",
                     style = MaterialTheme.typography.titleMedium,
-                    color = CobaltBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
                 )
                 ElevatedCard(
                     onClick = { showDailyRelief = true },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Rounded.Timer, contentDescription = null, tint = CobaltBlue, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Daily Relief Time",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextNavy
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Resets daily at midnight.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         
@@ -528,13 +527,13 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             CircularProgressIndicator(
                                 progress = { 1f },
                                 modifier = Modifier.fillMaxSize(),
-                                color = CobaltBlue.copy(alpha = 0.1f),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                                 strokeWidth = 4.dp
                             )
                             CircularProgressIndicator(
                                 progress = { progress },
                                 modifier = Modifier.fillMaxSize(),
-                                color = CobaltBlue,
+                                color = MaterialTheme.colorScheme.primary,
                                 strokeWidth = 4.dp,
                                 strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                             )
@@ -547,15 +546,15 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 Text(
                     text = "Session Cooldown",
                     style = MaterialTheme.typography.titleMedium,
-                    color = CobaltBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
                 )
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -563,16 +562,16 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                 text = "Post-Unlock Grace Period",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextNavy,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f)
                             )
                             Surface(
-                                color = CobaltBlue,
+                                color = MaterialTheme.colorScheme.primary,
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
-                                    text = "${cooldownOptions[cooldownIndex.roundToInt()]} min Selected",
-                                    color = Color.White,
+                                    text = "${cooldownOptions[cooldownIndex.roundToInt()]} min",
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                     fontWeight = FontWeight.Bold
@@ -589,16 +588,16 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             valueRange = 0f..3f,
                             steps = 2,
                             colors = SliderDefaults.colors(
-                                thumbColor = CobaltBlue,
-                                activeTrackColor = CobaltBlue,
-                                inactiveTrackColor = CobaltBlue.copy(alpha = 0.2f),
-                                activeTickColor = Color.White,
-                                inactiveTickColor = CobaltBlue.copy(alpha = 0.5f)
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                activeTickColor = MaterialTheme.colorScheme.onPrimary,
+                                inactiveTickColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                             )
                         )
                         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                             cooldownOptions.forEach { mins ->
-                                Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontWeight = FontWeight.Medium)
+                                Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
