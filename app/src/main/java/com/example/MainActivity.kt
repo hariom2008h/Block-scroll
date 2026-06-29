@@ -299,68 +299,9 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
     val TextNavy = Color(0xFF0A1128)
     val SurfaceLight = Color(0xFFF5F7FA)
 
-    var selectedBottomNavTab by remember { mutableIntStateOf(0) }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = SurfaceLight,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "Shorts Blocker",
-                        fontWeight = FontWeight.ExtraBold,
-                        color = CobaltBlue
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { /* Info action */ }) {
-                        Icon(Icons.Rounded.Info, contentDescription = "Info", tint = CobaltBlue)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = CobaltBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SurfaceLight
-                )
-            )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Rounded.Shield, contentDescription = "Home") },
-                    label = { Text("Home") },
-                    selected = selectedBottomNavTab == 0,
-                    onClick = { selectedBottomNavTab = 0 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CobaltBlue,
-                        selectedTextColor = CobaltBlue,
-                        indicatorColor = CobaltBlue.copy(alpha = 0.1f),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Rounded.List, contentDescription = "Rules") },
-                    label = { Text("Rules") },
-                    selected = selectedBottomNavTab == 1,
-                    onClick = { onNavigateToSettings() },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CobaltBlue,
-                        selectedTextColor = CobaltBlue,
-                        indicatorColor = CobaltBlue.copy(alpha = 0.1f),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-            }
-        }
+        containerColor = SurfaceLight
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -369,72 +310,84 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             item {
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = Color(0xFFEAE5F7)
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            text = "Shorts Blocker",
+                            fontWeight = FontWeight.ExtraBold,
+                            color = CobaltBlue
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = CobaltBlue)
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color.Transparent
                     ),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+                )
+            }
+            
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Surface(
+                        color = CobaltBlue.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .background(
-                                    color = Color(0xFFC4BCE1),
-                                    shape = androidx.compose.foundation.shape.CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Text(
+                            text = "$bypassCount Times Bypassed",
+                            color = CobaltBlue,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    colors = listOf(Color(0xFFE6EEFF), Color.White)
+                                )
+                            )
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
                                 imageVector = Icons.Rounded.Shield,
                                 contentDescription = null,
                                 tint = CobaltBlue,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(72.dp)
                             )
-                        }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            text = "Active Protection",
-                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
-                            fontWeight = FontWeight.Bold,
-                            color = TextNavy
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Friction is enabled for selected apps",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextNavy.copy(alpha = 0.7f)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        androidx.compose.material3.Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color.White.copy(alpha = 0.5f)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.LockOpen, 
-                                        contentDescription = null, 
-                                        modifier = Modifier.size(20.dp), 
-                                        tint = CobaltBlue
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("$bypassCount", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextNavy)
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Times Bypassed", style = MaterialTheme.typography.bodySmall, color = TextNavy.copy(alpha = 0.7f))
-                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Active Protection",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = CobaltBlue
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Friction is enabled for selected apps.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextNavy.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
