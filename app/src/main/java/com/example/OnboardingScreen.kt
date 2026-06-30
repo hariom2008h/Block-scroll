@@ -109,9 +109,41 @@ fun ShortsBlockerOnboardingScreen(
             .background(MaterialTheme.colorScheme.background),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        var showHelpDialog by remember { mutableStateOf(false) }
+
+        if (showHelpDialog) {
+            val currentStep = steps[pagerState.currentPage]
+            val helpTitle = when (currentStep) {
+                OnboardingStep.NOTIFICATION -> "How to allow notifications"
+                OnboardingStep.OVERLAY -> "How to allow overlay"
+                OnboardingStep.ACCESSIBILITY -> "How to allow accessibility"
+                OnboardingStep.BATTERY_OPTIMIZATION -> "How to fix battery optimization"
+                else -> "Help"
+            }
+            val helpText = when (currentStep) {
+                OnboardingStep.NOTIFICATION -> "Tap 'Grant Notification' and select 'Allow' on the popup."
+                OnboardingStep.OVERLAY -> "Tap 'Grant Overlay', find 'Shorts Blocker' in the list, and turn on 'Allow display over other apps'."
+                OnboardingStep.ACCESSIBILITY -> "Tap 'Grant Accessibility', look for 'Downloaded apps' or 'Installed services', select 'Shorts Blocker', and turn it on. If prompted, allow full control."
+                OnboardingStep.BATTERY_OPTIMIZATION -> "Tap 'Fix Battery', select 'No restrictions' or 'Unrestricted' so the app can run in the background. If you have an Auto Start option, please enable it for Shorts Blocker."
+                else -> "Please follow the instructions on the screen."
+            }
+            
+            AlertDialog(
+                onDismissRequest = { showHelpDialog = false },
+                title = { Text(helpTitle) },
+                text = { Text(helpText) },
+                confirmButton = {
+                    TextButton(onClick = { showHelpDialog = false }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            userScrollEnabled = false
         ) { page ->
             when (steps[page]) {
                 OnboardingStep.WELCOME -> OnboardingPage(
@@ -192,31 +224,31 @@ fun ShortsBlockerOnboardingScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
-            TextButton(
-                onClick = onFinishOnboarding,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
-                Text("Skip")
+            val currentStep = steps[pagerState.currentPage]
+            
+            if (currentStep != OnboardingStep.ALL_SET && currentStep != OnboardingStep.WELCOME) {
+                TextButton(
+                    onClick = {
+                        showHelpDialog = true
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Text("Help")
+                }
             }
 
-            val currentStep = steps[pagerState.currentPage]
             when (currentStep) {
                 OnboardingStep.NOTIFICATION -> {
                     if (!isNotificationGranted) {
-                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                        requestNotificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                    }
+                        Button(
+                            onClick = {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                    requestNotificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                                 }
-                            ) {
-                                Text("Grant Notification")
-                            }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Grant Notification")
                         }
                     } else {
                         Button(
@@ -229,22 +261,17 @@ fun ShortsBlockerOnboardingScreen(
                 }
                 OnboardingStep.OVERLAY -> {
                     if (!isOverlayGranted) {
-                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        android.net.Uri.parse("package:${context.packageName}")
-                                    )
-                                    context.startActivity(intent)
-                                }
-                            ) {
-                                Text("Grant Overlay")
-                            }
+                        Button(
+                            onClick = {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Grant Overlay")
                         }
                     } else {
                         Button(
@@ -257,19 +284,14 @@ fun ShortsBlockerOnboardingScreen(
                 }
                 OnboardingStep.ACCESSIBILITY -> {
                     if (!isAccessibilityGranted) {
-                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                    context.startActivity(intent)
-                                }
-                            ) {
-                                Text("Grant Accessibility")
-                            }
+                        Button(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Grant Accessibility")
                         }
                     } else {
                         Button(
@@ -283,7 +305,7 @@ fun ShortsBlockerOnboardingScreen(
                 OnboardingStep.BATTERY_OPTIMIZATION -> {
                     Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                            Text("Skip")
+                            Text("Next")
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
