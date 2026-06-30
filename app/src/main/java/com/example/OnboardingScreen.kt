@@ -67,6 +67,14 @@ fun ShortsBlockerOnboardingScreen(
 
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
+    var isBatteryGranted by remember { 
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            } else true
+        ) 
+    }
     var isNotificationGranted by remember { 
         mutableStateOf(
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -94,6 +102,12 @@ fun ShortsBlockerOnboardingScreen(
                     android.Manifest.permission.POST_NOTIFICATIONS
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
             } else true
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                isBatteryGranted = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            } else {
+                isBatteryGranted = true
+            }
             kotlinx.coroutines.delay(500) // check every 500ms
         }
     }
@@ -109,6 +123,12 @@ fun ShortsBlockerOnboardingScreen(
                         android.Manifest.permission.POST_NOTIFICATIONS
                     ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 } else true
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                    isBatteryGranted = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+                } else {
+                    isBatteryGranted = true
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -165,13 +185,51 @@ fun ShortsBlockerOnboardingScreen(
                     description = "Take back control of your time. Stop mindless scrolling before it starts.",
                     icon = Icons.Rounded.Shield,
                     isAnimated = true,
-                    animationType = "bounce"
+                    animationType = "bounce",
+                    bottomContent = {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+                        ) {
+                            Text(
+                                text = "Get Started",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                        }
+                    }
                 )
                 OnboardingStep.HOW_IT_WORKS -> OnboardingPage(
                     title = "How It Works",
                     description = "We intercept addictive feeds on YouTube, Instagram, and Snapchat, giving you a chance to pause and exit.",
                     icon = Icons.Rounded.Block,
-                    isAnimated = false
+                    isAnimated = false,
+                    bottomContent = {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+                        ) {
+                            Text(
+                                text = "Continue",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                        }
+                    }
                 )
                 OnboardingStep.NOTIFICATION -> OnboardingPage(
                     title = "Notifications Permission",
@@ -325,11 +383,7 @@ fun ShortsBlockerOnboardingScreen(
                     }
                 }
                 OnboardingStep.BATTERY_OPTIMIZATION -> {
-                    Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                            Text("Next")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+                    if (!isBatteryGranted) {
                         Button(
                             onClick = {
                                 try {
@@ -346,19 +400,37 @@ fun ShortsBlockerOnboardingScreen(
                                 if (needsAutoStart()) {
                                     openAutoStartSettings(context)
                                 }
-                            }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
                             Text("Fix Battery")
+                        }
+                    } else {
+                        Button(
+                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Next")
                         }
                     }
                 }
                 OnboardingStep.ALL_SET -> {
                     Button(
                         onClick = onFinishOnboarding,
-                        modifier = Modifier.align(Alignment.CenterEnd)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                     ) {
-                        Text("Finish & Start")
+                        Text(
+                            text = "Finish & Start",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
                     }
+                }
+                OnboardingStep.WELCOME, OnboardingStep.HOW_IT_WORKS -> {
+                    // Button is rendered in the page itself
                 }
                 else -> {
                     Button(
@@ -411,7 +483,8 @@ fun OnboardingPage(
     description: String,
     icon: ImageVector,
     isAnimated: Boolean,
-    animationType: String = "none"
+    animationType: String = "none",
+    bottomContent: @Composable () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -488,5 +561,9 @@ fun OnboardingPage(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        bottomContent()
     }
 }
