@@ -84,6 +84,20 @@ fun ShortsBlockerOnboardingScreen(
         isNotificationGranted = isGranted || (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU)
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            isOverlayGranted = Settings.canDrawOverlays(context)
+            isAccessibilityGranted = isAccessibilityPermissionGranted(context)
+            isNotificationGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            } else true
+            kotlinx.coroutines.delay(500) // check every 500ms
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -263,11 +277,15 @@ fun ShortsBlockerOnboardingScreen(
                     if (!isOverlayGranted) {
                         Button(
                             onClick = {
-                                val intent = Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    android.net.Uri.parse("package:${context.packageName}")
-                                )
-                                context.startActivity(intent)
+                                try {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse("package:${context.packageName}")
+                                    )
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Cannot open Overlay Settings", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
@@ -286,8 +304,12 @@ fun ShortsBlockerOnboardingScreen(
                     if (!isAccessibilityGranted) {
                         Button(
                             onClick = {
-                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                context.startActivity(intent)
+                                try {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Cannot open Accessibility Settings", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
@@ -358,8 +380,29 @@ fun ShortsBlockerOnboardingScreen(
 // Simple helper inside here just to detect if it's on without throwing errors, 
 // using the same logic we've used in the rest of the application
 private fun isAccessibilityPermissionGranted(context: android.content.Context): Boolean {
-    val enabledServices = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-    return enabledServices?.contains(context.packageName) == true
+    var isEnabled = false
+    try {
+        val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (service in enabledServices) {
+            if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                isEnabled = true
+                break
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    
+    if (!isEnabled) {
+        try {
+            val enabledServicesStr = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            isEnabled = enabledServicesStr?.contains(context.packageName) == true
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    return isEnabled
 }
 
 @Composable

@@ -101,12 +101,70 @@ class MainActivity : ComponentActivity() {
       var missingNotification by remember { mutableStateOf(false) }
       var missingBattery by remember { mutableStateOf(false) }
 
+      LaunchedEffect(Unit) {
+          while (true) {
+              missingOverlay = !android.provider.Settings.canDrawOverlays(context)
+              
+              var isAccEnabled = false
+              try {
+                  val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+                  val enabledServicesList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                  for (service in enabledServicesList) {
+                      if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                          isAccEnabled = true
+                          break
+                      }
+                  }
+              } catch (e: Exception) { e.printStackTrace() }
+              
+              if (!isAccEnabled) {
+                  try {
+                      val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                      isAccEnabled = enabledServices?.contains(context.packageName) == true
+                  } catch (e: Exception) { e.printStackTrace() }
+              }
+              missingAccessibility = !isAccEnabled
+              
+              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                  missingNotification = androidx.core.content.ContextCompat.checkSelfPermission(
+                      context,
+                      android.Manifest.permission.POST_NOTIFICATIONS
+                  ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+              } else {
+                  missingNotification = false
+              }
+              
+              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                  val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                  missingBattery = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+              }
+              kotlinx.coroutines.delay(500)
+          }
+      }
+
       DisposableEffect(lifecycleOwner) {
           val observer = LifecycleEventObserver { _, event ->
               if (event == Lifecycle.Event.ON_RESUME) {
                   missingOverlay = !android.provider.Settings.canDrawOverlays(context)
-                  val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-                  missingAccessibility = enabledServices?.contains(context.packageName) != true
+                  var isAccEnabled = false
+                  try {
+                      val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+                      val enabledServicesList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                      for (service in enabledServicesList) {
+                          if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                              isAccEnabled = true
+                              break
+                          }
+                      }
+                  } catch (e: Exception) { e.printStackTrace() }
+                  
+                  if (!isAccEnabled) {
+                      try {
+                          val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                          isAccEnabled = enabledServices?.contains(context.packageName) == true
+                      } catch (e: Exception) { e.printStackTrace() }
+                  }
+                  missingAccessibility = !isAccEnabled
                   
                   if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                       missingNotification = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -161,17 +219,25 @@ class MainActivity : ComponentActivity() {
                       }
                       if (missingOverlay) {
                           TextButton(onClick = { 
-                              val intent = android.content.Intent(
-                                  android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                  android.net.Uri.parse("package:${context.packageName}")
-                              )
-                              context.startActivity(intent)
+                              try {
+                                  val intent = android.content.Intent(
+                                      android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                      android.net.Uri.parse("package:${context.packageName}")
+                                  )
+                                  context.startActivity(intent)
+                              } catch (e: Exception) {
+                                  android.widget.Toast.makeText(context, "Cannot open Overlay Settings", android.widget.Toast.LENGTH_SHORT).show()
+                              }
                           }) { Text("Fix Overlay") }
                       }
                       if (missingAccessibility) {
                            TextButton(onClick = {
-                               val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                               context.startActivity(intent)
+                               try {
+                                   val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                   context.startActivity(intent)
+                               } catch (e: Exception) {
+                                   android.widget.Toast.makeText(context, "Cannot open Accessibility Settings", android.widget.Toast.LENGTH_SHORT).show()
+                               }
                            }) { Text("Fix Accessibility") }
                       }
                       if (missingBattery) {
