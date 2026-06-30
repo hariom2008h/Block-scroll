@@ -285,35 +285,6 @@ class ShortsBlockerService : AccessibilityService() {
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
 
-    private val paymentApps = setOf(
-        "com.google.android.apps.nbu.paisa.user", // GPay
-        "net.one97.paytm", // Paytm
-        "com.phonepe.app", // PhonePe
-        "in.org.npci.upiapp", // BHIM
-        "com.naviapp", // Navi
-        "com.dreamplug.androidapp", // CRED
-        "in.amazon.mShop.android.shopping", // Amazon (Amazon Pay)
-        "com.mobikwik_new", // MobiKwik
-        "com.freecharge.android" // Freecharge
-    )
-    private var isCurrentlyPausedForPayment = false
-
-    private fun updateNotification(text: String) {
-        try {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val notification = NotificationCompat.Builder(this, "shorts_blocker_channel")
-                .setContentTitle("Shorts Blocker")
-                .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-                .setPriority(NotificationCompat.PRIORITY_MIN)
-                .setOngoing(true)
-                .build()
-            notificationManager.notify(NOTIFICATION_ID, notification)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
@@ -356,6 +327,19 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         checkJob?.cancel()
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val warningNotification = NotificationCompat.Builder(this, "shorts_blocker_channel")
+                .setContentTitle("⚠️ Accessibility Service is OFF")
+                .setContentText("Shorts Blocker requires Accessibility permissions to function. Please turn it back on.")
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build()
+            notificationManager.notify(4041, warningNotification)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         return super.onUnbind(intent)
     }
 
@@ -443,18 +427,24 @@ class ShortsBlockerService : AccessibilityService() {
         try {
             val packageName = event.packageName?.toString() ?: ""
             val eventType = event.eventType
+
+            val paymentApps = setOf(
+                "com.google.android.apps.nbu.paisa.user", // GPay
+                "net.one97.paytm", // Paytm
+                "com.phonepe.app", // PhonePe
+                "in.org.npci.upiapp", // BHIM
+                "com.naviapp", // Navi
+                "com.dreamplug.androidapp", // CRED
+                "in.amazon.mShop.android.shopping", // Amazon (Amazon Pay)
+                "com.mobikwik_new", // MobiKwik
+                "com.freecharge.android" // Freecharge
+            )
             
             if (paymentApps.contains(packageName)) {
-                if (!isCurrentlyPausedForPayment) {
-                    isCurrentlyPausedForPayment = true
-                    updateNotification("Temporary Paused for Secure Payment 🔒")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    disableSelf()
                 }
                 return
-            } else if (packageName.isNotEmpty()) {
-                if (isCurrentlyPausedForPayment) {
-                    isCurrentlyPausedForPayment = false
-                    updateNotification("Focus Mode Active 🎯")
-                }
             }
 
             val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
