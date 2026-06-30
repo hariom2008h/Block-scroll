@@ -288,41 +288,7 @@ class ShortsBlockerService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         ReminderReceiver.cancelReminder(this)
-        try {
-            val notificationManagerCompat = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManagerCompat.cancel(4041)
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    "shorts_blocker_channel",
-                    "Service Status",
-                    NotificationManager.IMPORTANCE_MIN
-                ).apply {
-                    description = "Keeps the blocker service alive."
-                }
-                val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager.createNotificationChannel(channel)
-            }
-
-            val notification = NotificationCompat.Builder(this, "shorts_blocker_channel")
-                .setContentTitle("Shorts Blocker")
-                .setContentText("Running in background to block shorts")
-                .setSmallIcon(R.drawable.ic_block)
-                .setColor(android.graphics.Color.parseColor("#FF007F"))
-                .setPriority(NotificationCompat.PRIORITY_MIN)
-                .setOngoing(true)
-                .build()
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -434,9 +400,6 @@ class ShortsBlockerService : AccessibilityService() {
             )
             
             if (paymentApps.contains(packageName)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    disableSelf()
-                }
                 return
             }
 

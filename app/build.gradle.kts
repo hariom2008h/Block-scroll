@@ -15,9 +15,9 @@ android {
   defaultConfig {
     applicationId = "com.aistudio.shortsblocker.xsdfwe"
     minSdk = 26
-    targetSdk = 36
-    versionCode = 9
-    versionName = "1.9"
+    targetSdk = 34
+    versionCode = 16
+    versionName = "1.16"
 
     buildConfigField("String", "TELEGRAM_BOT_TOKEN", "\"${System.getenv("TELEGRAM_BOT_TOKEN") ?: ""}\"")
     buildConfigField("String", "TELEGRAM_CHAT_ID", "\"${System.getenv("TELEGRAM_CHAT_ID") ?: ""}\"")

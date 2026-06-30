@@ -383,34 +383,31 @@ fun ShortsBlockerOnboardingScreen(
                     }
                 }
                 OnboardingStep.BATTERY_OPTIMIZATION -> {
-                    if (!isBatteryGranted) {
-                        Button(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = android.net.Uri.parse("package:${context.packageName}")
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    try {
-                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                        context.startActivity(intent)
-                                    } catch (e2: Exception) {}
-                                }
-                                if (needsAutoStart()) {
-                                    openAutoStartSettings(context)
-                                }
-                            },
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) {
-                            Text("Fix Battery")
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        if (needsAutoStart()) {
+                            Button(
+                                onClick = { openAutoStartSettings(context) },
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Text("Fix Auto Start")
+                            }
                         }
-                    } else {
+                        if (!isBatteryGranted) {
+                            Button(
+                                onClick = { openBatteryOptimizationSettings(context) },
+                                modifier = Modifier.padding(bottom = if (needsAutoStart()) 8.dp else 0.dp)
+                            ) {
+                                Text("Fix Battery")
+                            }
+                        }
                         Button(
                             onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
-                            modifier = Modifier.align(Alignment.CenterEnd)
+                            modifier = Modifier.padding(top = 8.dp)
                         ) {
-                            Text("Next")
+                            Text(if (!isBatteryGranted || needsAutoStart()) "Skip / Next" else "Next")
                         }
                     }
                 }

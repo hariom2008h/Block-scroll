@@ -759,18 +759,7 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                 }
                 TextButton(
                     onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            try {
-                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                context.startActivity(intent)
-                            } catch (e2: Exception) {
-                            }
-                        }
+                        openBatteryOptimizationSettings(context)
                         if (requiresAutoStart) {
                             openAutoStartSettings(context)
                         }
@@ -1313,6 +1302,27 @@ fun UpdateDetailsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+fun openBatteryOptimizationSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:${context.packageName}")
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        try {
+            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            context.startActivity(intent)
+        } catch (e2: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            } catch (e3: Exception) {}
         }
     }
 }
