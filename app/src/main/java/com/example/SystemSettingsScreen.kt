@@ -591,43 +591,6 @@ fun ShortsBlockerSystemSettingsScreen(
 fun PermissionsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    var isAccessibilityGranted by remember { mutableStateOf(false) }
-    var isBatteryOptimizationDisabled by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            isOverlayGranted = Settings.canDrawOverlays(context)
-            
-            var isAccEnabled = false
-            try {
-                val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
-                val enabledServicesList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-                for (service in enabledServicesList) {
-                    if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
-                        isAccEnabled = true
-                        break
-                    }
-                }
-            } catch (e: Exception) { e.printStackTrace() }
-            
-            if (!isAccEnabled) {
-                try {
-                    val enabledServices = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-                    isAccEnabled = enabledServices?.contains(context.packageName) == true
-                } catch (e: Exception) { e.printStackTrace() }
-            }
-            isAccessibilityGranted = isAccEnabled
-            
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                isBatteryOptimizationDisabled = powerManager.isIgnoringBatteryOptimizations(context.packageName)
-            } else {
-                isBatteryOptimizationDisabled = true
-            }
-            
-            kotlinx.coroutines.delay(500)
-        }
-    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -695,13 +658,10 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val accColor by animateColorAsState(if (isAccessibilityGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                val accIcon = if (isAccessibilityGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Settings
-                
                 Icon(
-                    imageVector = accIcon,
+                    imageVector = Icons.Rounded.Settings,
                     contentDescription = null,
-                    tint = accColor,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
@@ -712,7 +672,7 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (isAccessibilityGranted) "Active" else "To intercept scrolls",
+                        text = "To intercept scrolls",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -723,7 +683,7 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                         context.startActivity(intent)
                     },
                 ) {
-                    Text(if (isAccessibilityGranted) "Manage" else "Enable")
+                    Text("Enable")
                 }
             }
             
@@ -735,13 +695,10 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val batteryColor by animateColorAsState(if (isBatteryOptimizationDisabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                val batteryIcon = if (isBatteryOptimizationDisabled) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-                
                 Icon(
-                    imageVector = batteryIcon,
+                    imageVector = androidx.compose.material.icons.Icons.Rounded.Warning,
                     contentDescription = null,
-                    tint = batteryColor,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
@@ -752,20 +709,31 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (isBatteryOptimizationDisabled) "Active" else "Required for background block",
+                        text = "Required for background block",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 TextButton(
                     onClick = {
-                        openBatteryOptimizationSettings(context)
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            try {
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (e2: Exception) {
+                            }
+                        }
                         if (requiresAutoStart) {
                             openAutoStartSettings(context)
                         }
                     },
                 ) {
-                    Text(if (isBatteryOptimizationDisabled) "Manage" else "Fix")
+                    Text("Fix")
                 }
             }
         }
@@ -1302,27 +1270,6 @@ fun UpdateDetailsScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-fun openBatteryOptimizationSettings(context: Context) {
-    try {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-            data = Uri.parse("package:${context.packageName}")
-        }
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        try {
-            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-            context.startActivity(intent)
-        } catch (e2: Exception) {
-            try {
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                }
-                context.startActivity(intent)
-            } catch (e3: Exception) {}
         }
     }
 }
