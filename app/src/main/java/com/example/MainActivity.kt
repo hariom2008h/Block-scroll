@@ -852,7 +852,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                         hideLauncherIcon = isHidden
                         sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
                         
-                        val componentName = ComponentName(context, "com.example.LauncherActivity")
+                        val componentName = ComponentName(context, "com.example.SplashActivity")
                         context.packageManager.setComponentEnabledSetting(
                             componentName,
                             if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
