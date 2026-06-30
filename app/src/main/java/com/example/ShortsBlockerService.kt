@@ -287,6 +287,7 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        ReminderReceiver.cancelReminder(this)
         try {
             val notificationManagerCompat = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManagerCompat.cancel(4041)
@@ -331,46 +332,7 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         checkJob?.cancel()
-        try {
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    "shorts_blocker_warning",
-                    "Important Alerts",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Alerts when the service needs attention."
-                }
-                notificationManager.createNotificationChannel(channel)
-            }
-
-            val settingsIntent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            settingsIntent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-            val pendingIntent = android.app.PendingIntent.getActivity(
-                this, 
-                0, 
-                settingsIntent, 
-                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
-            )
-
-            val warningNotification = NotificationCompat.Builder(this, "shorts_blocker_warning")
-                .setContentTitle("⚠️ Accessibility Service is OFF")
-                .setContentText("Shorts Blocker requires Accessibility permissions.")
-                .setStyle(NotificationCompat.BigTextStyle().bigText("Shorts Blocker requires Accessibility permissions to function. The service was disabled (likely for a secure payment). Please turn it back on to resume blocking shorts."))
-                .setSmallIcon(R.drawable.ic_block)
-                .setColor(android.graphics.Color.parseColor("#FF007F"))
-                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher))
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setOngoing(true)
-                .setAutoCancel(false)
-                .addAction(R.drawable.ic_block, "Turn On in Settings", pendingIntent)
-                .setContentIntent(pendingIntent)
-                .build()
-            notificationManager.notify(4041, warningNotification)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        ReminderReceiver.scheduleNextReminder(this)
         return super.onUnbind(intent)
     }
 

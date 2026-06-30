@@ -177,11 +177,20 @@ class MainActivity : ComponentActivity() {
                       if (missingBattery) {
                           TextButton(onClick = {
                               try {
-                                  val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                      data = android.net.Uri.parse("package:${context.packageName}")
+                                  val miuiIntent = android.content.Intent().apply {
+                                      setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                                      putExtra("package_name", context.packageName)
+                                      putExtra("package_label", "Shorts Blocker")
                                   }
-                                  context.startActivity(intent)
-                              } catch (e: Exception) {}
+                                  context.startActivity(miuiIntent)
+                              } catch (e: Exception) {
+                                  try {
+                                      val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                          data = android.net.Uri.parse("package:${context.packageName}")
+                                      }
+                                      context.startActivity(intent)
+                                  } catch (ex: Exception) {}
+                              }
                           }) { Text("Fix Background Running") }
                       }
                   }
@@ -888,6 +897,26 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                             sharedPrefs.edit().putBoolean("enable_floating_timer", isEnabled).apply()
                         }
                     )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        try {
+                            val miuiIntent = android.content.Intent().apply {
+                                setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                                putExtra("package_name", context.packageName)
+                                putExtra("package_label", "Shorts Blocker")
+                            }
+                            context.startActivity(miuiIntent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Not a Xiaomi device or settings not found.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text("Force Open MIUI Battery Saver")
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
