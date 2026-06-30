@@ -757,46 +757,26 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (requiresAutoStart) {
-                    TextButton(
-                        onClick = { openAutoStartSettings(context) },
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Text("Auto Start")
-                    }
-                }
                 TextButton(
                     onClick = {
                         try {
-                            val miuiIntent = Intent().apply {
-                                setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
-                                putExtra("package_name", context.packageName)
-                                putExtra("package_label", context.getString(R.string.app_name))
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
                             }
-                            context.startActivity(miuiIntent)
+                            context.startActivity(intent)
                         } catch (e: Exception) {
                             try {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                                 context.startActivity(intent)
                             } catch (e2: Exception) {
-                                try {
-                                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    context.startActivity(intent)
-                                } catch (e3: Exception) {
-                                    try {
-                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                            data = Uri.parse("package:${context.packageName}")
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (e4: Exception) {}
-                                }
                             }
+                        }
+                        if (requiresAutoStart) {
+                            openAutoStartSettings(context)
                         }
                     },
                 ) {
-                    Text(if (isBatteryOptimizationDisabled) "Manage" else "Fix Battery")
+                    Text(if (isBatteryOptimizationDisabled) "Manage" else "Fix")
                 }
             }
         }

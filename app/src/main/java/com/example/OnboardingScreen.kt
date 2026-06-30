@@ -384,51 +384,26 @@ fun ShortsBlockerOnboardingScreen(
                 }
                 OnboardingStep.BATTERY_OPTIMIZATION -> {
                     if (!isBatteryGranted) {
-                        Column(
-                            horizontalAlignment = Alignment.End,
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = android.net.Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        context.startActivity(intent)
+                                    } catch (e2: Exception) {}
+                                }
+                                if (needsAutoStart()) {
+                                    openAutoStartSettings(context)
+                                }
+                            },
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
-                            if (needsAutoStart()) {
-                                Button(
-                                    onClick = { openAutoStartSettings(context) },
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                ) {
-                                    Text("Fix Auto Start")
-                                }
-                            }
-                            Button(
-                                onClick = {
-                                    try {
-                                        val miuiIntent = Intent().apply {
-                                            setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
-                                            putExtra("package_name", context.packageName)
-                                            putExtra("package_label", context.getString(R.string.app_name))
-                                        }
-                                        context.startActivity(miuiIntent)
-                                    } catch (e: Exception) {
-                                        try {
-                                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                data = android.net.Uri.parse("package:${context.packageName}")
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (e2: Exception) {
-                                            try {
-                                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                                context.startActivity(intent)
-                                            } catch (e3: Exception) {
-                                                try {
-                                                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                                        data = android.net.Uri.parse("package:${context.packageName}")
-                                                    }
-                                                    context.startActivity(intent)
-                                                } catch (e4: Exception) {}
-                                            }
-                                        }
-                                    }
-                                }
-                            ) {
-                                Text("Fix Battery")
-                            }
+                            Text("Fix Battery")
                         }
                     } else {
                         Button(
