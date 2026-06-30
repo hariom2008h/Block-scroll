@@ -286,10 +286,15 @@ class ShortsBlockerService : AccessibilityService() {
     private var audioFocusRequest: AudioFocusRequest? = null
 
     private val paymentApps = setOf(
-        "com.google.android.apps.nbu.paisa.user",
-        "net.one97.paytm",
-        "com.phonepe.app",
-        "in.org.npci.upiapp"
+        "com.google.android.apps.nbu.paisa.user", // GPay
+        "net.one97.paytm", // Paytm
+        "com.phonepe.app", // PhonePe
+        "in.org.npci.upiapp", // BHIM
+        "com.naviapp", // Navi
+        "com.dreamplug.androidapp", // CRED
+        "in.amazon.mShop.android.shopping", // Amazon (Amazon Pay)
+        "com.mobikwik_new", // MobiKwik
+        "com.freecharge.android" // Freecharge
     )
     private var isCurrentlyPausedForPayment = false
 
