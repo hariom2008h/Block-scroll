@@ -285,6 +285,30 @@ class ShortsBlockerService : AccessibilityService() {
     private var audioManager: AudioManager? = null
     private var audioFocusRequest: AudioFocusRequest? = null
 
+    private val paymentApps = setOf(
+        "com.google.android.apps.nbu.paisa.user",
+        "net.one97.paytm",
+        "com.phonepe.app",
+        "in.org.npci.upiapp"
+    )
+    private var isCurrentlyPausedForPayment = false
+
+    private fun updateNotification(text: String) {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notification = NotificationCompat.Builder(this, "shorts_blocker_channel")
+                .setContentTitle("Shorts Blocker")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setOngoing(true)
+                .build()
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
@@ -414,6 +438,19 @@ class ShortsBlockerService : AccessibilityService() {
         try {
             val packageName = event.packageName?.toString() ?: ""
             val eventType = event.eventType
+            
+            if (paymentApps.contains(packageName)) {
+                if (!isCurrentlyPausedForPayment) {
+                    isCurrentlyPausedForPayment = true
+                    updateNotification("Temporary Paused for Secure Payment 🔒")
+                }
+                return
+            } else if (packageName.isNotEmpty()) {
+                if (isCurrentlyPausedForPayment) {
+                    isCurrentlyPausedForPayment = false
+                    updateNotification("Focus Mode Active 🎯")
+                }
+            }
 
             val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
             val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
