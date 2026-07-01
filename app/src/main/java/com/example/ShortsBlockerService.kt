@@ -604,17 +604,23 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 // If it's a Chat/DM, return 2 immediately if allowChatReels is true
-                if (allowChatReels && (viewId.contains("message_list") || 
-                    viewId.contains("direct_thread") || 
-                    viewId.contains("chat_message") || 
-                    viewId.contains("chat_feed") || 
-                    viewId.contains("direct_reply") ||
-                    viewId.contains("conversation") ||
-                    viewId.contains("direct_message") ||
-                    viewId.contains("chat_layout") ||
-                    viewId.contains("messaging") ||
-                    viewId.contains("chat_panel") ||
-                    viewId.contains("chat_")
+                if (allowChatReels && (
+                    viewId.endsWith(":id/message_list") || 
+                    viewId.endsWith(":id/direct_thread_layout") || 
+                    viewId.endsWith(":id/chat_message_list") || 
+                    viewId.endsWith(":id/chat_layout") ||
+                    viewId.endsWith(":id/conversation_layout") ||
+                    viewId.endsWith(":id/direct_edit_text") || // Instagram reply bar in DM reels
+                    viewId.endsWith(":id/message_edit_text") ||
+                    viewId.endsWith(":id/chat_input_text") ||
+                    viewId.endsWith(":id/thread_list") ||
+                    viewId.endsWith(":id/direct_message_list") ||
+                    viewId.endsWith(":id/reply_bar") ||
+                    viewId.endsWith(":id/chat_input_bar") ||
+                    viewId.endsWith(":id/chat_input") ||
+                    viewId.endsWith(":id/chat_input_field") ||
+                    viewId == "com.instagram.android:id/direct_thread_layout" ||
+                    viewId == "com.instagram.android:id/message_list"
                 )) {
                     return 2
                 }
@@ -658,6 +664,8 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.contains("neon_spotlight_play_view") || 
                     viewId.contains("neon_spotlight_playback_view") ||
                     viewId.contains("spotlight_page_content") ||
+                    viewId.contains("ngs_spotlight") ||
+                    viewId.endsWith(":id/spotlight") ||
                     (viewId.contains("spotlight") && (viewId.contains("player") || viewId.contains("video") || viewId.contains("view") || viewId.contains("play")))
                 )) {
                     return 1
