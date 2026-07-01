@@ -101,12 +101,70 @@ class MainActivity : ComponentActivity() {
       var missingNotification by remember { mutableStateOf(false) }
       var missingBattery by remember { mutableStateOf(false) }
 
+      LaunchedEffect(Unit) {
+          while (true) {
+              missingOverlay = !android.provider.Settings.canDrawOverlays(context)
+              
+              var isAccEnabled = false
+              try {
+                  val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+                  val enabledServicesList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                  for (service in enabledServicesList) {
+                      if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                          isAccEnabled = true
+                          break
+                      }
+                  }
+              } catch (e: Exception) { e.printStackTrace() }
+              
+              if (!isAccEnabled) {
+                  try {
+                      val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                      isAccEnabled = enabledServices?.contains(context.packageName) == true
+                  } catch (e: Exception) { e.printStackTrace() }
+              }
+              missingAccessibility = !isAccEnabled
+              
+              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                  missingNotification = androidx.core.content.ContextCompat.checkSelfPermission(
+                      context,
+                      android.Manifest.permission.POST_NOTIFICATIONS
+                  ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+              } else {
+                  missingNotification = false
+              }
+              
+              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                  val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                  missingBattery = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+              }
+              kotlinx.coroutines.delay(500)
+          }
+      }
+
       DisposableEffect(lifecycleOwner) {
           val observer = LifecycleEventObserver { _, event ->
               if (event == Lifecycle.Event.ON_RESUME) {
                   missingOverlay = !android.provider.Settings.canDrawOverlays(context)
-                  val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-                  missingAccessibility = enabledServices?.contains(context.packageName) != true
+                  var isAccEnabled = false
+                  try {
+                      val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+                      val enabledServicesList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                      for (service in enabledServicesList) {
+                          if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                              isAccEnabled = true
+                              break
+                          }
+                      }
+                  } catch (e: Exception) { e.printStackTrace() }
+                  
+                  if (!isAccEnabled) {
+                      try {
+                          val enabledServices = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                          isAccEnabled = enabledServices?.contains(context.packageName) == true
+                      } catch (e: Exception) { e.printStackTrace() }
+                  }
+                  missingAccessibility = !isAccEnabled
                   
                   if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                       missingNotification = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -131,7 +189,7 @@ class MainActivity : ComponentActivity() {
 
       val isFirstLaunch = sharedPrefs.getBoolean("is_first_launch", true)
       
-      if (!isFirstLaunch && (missingOverlay || missingAccessibility || missingNotification || missingBattery)) {
+      if (!isFirstLaunch && (missingOverlay || missingAccessibility || missingNotification)) {
           AlertDialog(
               onDismissRequest = { },
               title = { Text("Permissions Required") },
@@ -142,7 +200,6 @@ class MainActivity : ComponentActivity() {
                       if (missingNotification) Text("• Notifications", fontWeight = FontWeight.Bold)
                       if (missingOverlay) Text("• Display over other apps", fontWeight = FontWeight.Bold)
                       if (missingAccessibility) Text("• Accessibility service", fontWeight = FontWeight.Bold)
-                      if (missingBattery) Text("• Unrestricted battery access (Run in background)", fontWeight = FontWeight.Bold)
                       Spacer(modifier = Modifier.height(16.dp))
                       Text("Please click below to restore them.", style = MaterialTheme.typography.bodyMedium)
                   }
@@ -161,37 +218,26 @@ class MainActivity : ComponentActivity() {
                       }
                       if (missingOverlay) {
                           TextButton(onClick = { 
-                              val intent = android.content.Intent(
-                                  android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                  android.net.Uri.parse("package:${context.packageName}")
-                              )
-                              context.startActivity(intent)
+                              try {
+                                  val intent = android.content.Intent(
+                                      android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                      android.net.Uri.parse("package:${context.packageName}")
+                                  )
+                                  context.startActivity(intent)
+                              } catch (e: Exception) {
+                                  android.widget.Toast.makeText(context, "Cannot open Overlay Settings", android.widget.Toast.LENGTH_SHORT).show()
+                              }
                           }) { Text("Fix Overlay") }
                       }
                       if (missingAccessibility) {
                            TextButton(onClick = {
-                               val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                               context.startActivity(intent)
+                               try {
+                                   val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                   context.startActivity(intent)
+                               } catch (e: Exception) {
+                                   android.widget.Toast.makeText(context, "Cannot open Accessibility Settings", android.widget.Toast.LENGTH_SHORT).show()
+                               }
                            }) { Text("Fix Accessibility") }
-                      }
-                      if (missingBattery) {
-                          TextButton(onClick = {
-                              try {
-                                  val miuiIntent = android.content.Intent().apply {
-                                      setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
-                                      putExtra("package_name", context.packageName)
-                                      putExtra("package_label", "Shorts Blocker")
-                                  }
-                                  context.startActivity(miuiIntent)
-                              } catch (e: Exception) {
-                                  try {
-                                      val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                          data = android.net.Uri.parse("package:${context.packageName}")
-                                      }
-                                      context.startActivity(intent)
-                                  } catch (ex: Exception) {}
-                              }
-                          }) { Text("Fix Background Running") }
                       }
                   }
               }
@@ -337,26 +383,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
             }
             
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = "$bypassCount Times Bypassed",
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-
-            item {
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(24.dp),
@@ -395,10 +421,46 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Friction is enabled for selected apps.",
+                                text = "Friction is enabled for selected apps",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                             )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.LockOpen,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = bypassCount.toString(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Times Bypassed",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
                 }

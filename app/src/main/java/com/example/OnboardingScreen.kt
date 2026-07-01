@@ -37,6 +37,7 @@ enum class OnboardingStep {
     OVERLAY,
     ACCESSIBILITY,
     BATTERY_OPTIMIZATION,
+    AUTO_START,
     ALL_SET
 }
 
@@ -55,7 +56,11 @@ fun ShortsBlockerOnboardingScreen(
         }
         list.add(OnboardingStep.OVERLAY)
         list.add(OnboardingStep.ACCESSIBILITY)
-        list.add(OnboardingStep.BATTERY_OPTIMIZATION)
+        if (needsAutoStart()) {
+            list.add(OnboardingStep.AUTO_START)
+        } else {
+            list.add(OnboardingStep.BATTERY_OPTIMIZATION)
+        }
         list.add(OnboardingStep.ALL_SET)
         list
     }
@@ -67,6 +72,14 @@ fun ShortsBlockerOnboardingScreen(
 
     var isOverlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityGranted by remember { mutableStateOf(isAccessibilityPermissionGranted(context)) }
+    var isBatteryGranted by remember { 
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            } else true
+        ) 
+    }
     var isNotificationGranted by remember { 
         mutableStateOf(
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -84,6 +97,26 @@ fun ShortsBlockerOnboardingScreen(
         isNotificationGranted = isGranted || (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU)
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            isOverlayGranted = Settings.canDrawOverlays(context)
+            isAccessibilityGranted = isAccessibilityPermissionGranted(context)
+            isNotificationGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            } else true
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                isBatteryGranted = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            } else {
+                isBatteryGranted = true
+            }
+            kotlinx.coroutines.delay(500) // check every 500ms
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -95,6 +128,12 @@ fun ShortsBlockerOnboardingScreen(
                         android.Manifest.permission.POST_NOTIFICATIONS
                     ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 } else true
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                    isBatteryGranted = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+                } else {
+                    isBatteryGranted = true
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -109,9 +148,43 @@ fun ShortsBlockerOnboardingScreen(
             .background(MaterialTheme.colorScheme.background),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        var showHelpDialog by remember { mutableStateOf(false) }
+
+        if (showHelpDialog) {
+            val currentStep = steps[pagerState.currentPage]
+            val helpTitle = when (currentStep) {
+                OnboardingStep.NOTIFICATION -> "How to allow notifications"
+                OnboardingStep.OVERLAY -> "How to allow overlay"
+                OnboardingStep.ACCESSIBILITY -> "How to allow accessibility"
+                OnboardingStep.BATTERY_OPTIMIZATION -> "How to fix battery optimization"
+                OnboardingStep.AUTO_START -> "How to enable auto start"
+                else -> "Help"
+            }
+            val helpText = when (currentStep) {
+                OnboardingStep.NOTIFICATION -> "Tap 'Grant Notification' and select 'Allow' on the popup."
+                OnboardingStep.OVERLAY -> "Tap 'Grant Overlay', find 'Shorts Blocker' in the list, and turn on 'Allow display over other apps'."
+                OnboardingStep.ACCESSIBILITY -> "Tap 'Grant Accessibility', look for 'Downloaded apps' or 'Installed services', select 'Shorts Blocker', and turn it on. If prompted, allow full control."
+                OnboardingStep.BATTERY_OPTIMIZATION -> "Tap 'Fix Battery', select 'No restrictions' or 'Unrestricted' so the app can run in the background."
+                OnboardingStep.AUTO_START -> "Tap 'Enable Auto Start' and allow Shorts Blocker to start automatically in the background."
+                else -> "Please follow the instructions on the screen."
+            }
+            
+            AlertDialog(
+                onDismissRequest = { showHelpDialog = false },
+                title = { Text(helpTitle) },
+                text = { Text(helpText) },
+                confirmButton = {
+                    TextButton(onClick = { showHelpDialog = false }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            userScrollEnabled = false
         ) { page ->
             when (steps[page]) {
                 OnboardingStep.WELCOME -> OnboardingPage(
@@ -119,13 +192,51 @@ fun ShortsBlockerOnboardingScreen(
                     description = "Take back control of your time. Stop mindless scrolling before it starts.",
                     icon = Icons.Rounded.Shield,
                     isAnimated = true,
-                    animationType = "bounce"
+                    animationType = "bounce",
+                    bottomContent = {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+                        ) {
+                            Text(
+                                text = "Get Started",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                        }
+                    }
                 )
                 OnboardingStep.HOW_IT_WORKS -> OnboardingPage(
                     title = "How It Works",
                     description = "We intercept addictive feeds on YouTube, Instagram, and Snapchat, giving you a chance to pause and exit.",
                     icon = Icons.Rounded.Block,
-                    isAnimated = false
+                    isAnimated = false,
+                    bottomContent = {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+                        ) {
+                            Text(
+                                text = "Continue",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                        }
+                    }
                 )
                 OnboardingStep.NOTIFICATION -> OnboardingPage(
                     title = "Notifications Permission",
@@ -149,9 +260,16 @@ fun ShortsBlockerOnboardingScreen(
                     animationType = "pulse"
                 )
                 OnboardingStep.BATTERY_OPTIMIZATION -> OnboardingPage(
-                    title = if (needsAutoStart()) "Auto Start & Battery" else "Battery Optimization",
+                    title = "Battery Optimization",
                     description = "Allow the app to run in the background without being killed by the system.",
                     icon = Icons.Rounded.BatteryStd,
+                    isAnimated = true,
+                    animationType = "pulse"
+                )
+                OnboardingStep.AUTO_START -> OnboardingPage(
+                    title = "Auto Start",
+                    description = "Please enable Auto Start for Shorts Blocker so it can run in the background.",
+                    icon = Icons.Rounded.RocketLaunch,
                     isAnimated = true,
                     animationType = "pulse"
                 )
@@ -192,31 +310,31 @@ fun ShortsBlockerOnboardingScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
-            TextButton(
-                onClick = onFinishOnboarding,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
-                Text("Skip")
+            val currentStep = steps[pagerState.currentPage]
+            
+            if (currentStep != OnboardingStep.ALL_SET && currentStep != OnboardingStep.WELCOME) {
+                TextButton(
+                    onClick = {
+                        showHelpDialog = true
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Text("Help")
+                }
             }
 
-            val currentStep = steps[pagerState.currentPage]
             when (currentStep) {
                 OnboardingStep.NOTIFICATION -> {
                     if (!isNotificationGranted) {
-                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                        requestNotificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                    }
+                        Button(
+                            onClick = {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                    requestNotificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                                 }
-                            ) {
-                                Text("Grant Notification")
-                            }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Grant Notification")
                         }
                     } else {
                         Button(
@@ -229,22 +347,21 @@ fun ShortsBlockerOnboardingScreen(
                 }
                 OnboardingStep.OVERLAY -> {
                     if (!isOverlayGranted) {
-                        Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
+                        Button(
+                            onClick = {
+                                try {
                                     val intent = Intent(
                                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                         android.net.Uri.parse("package:${context.packageName}")
                                     )
                                     context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Cannot open Overlay Settings", android.widget.Toast.LENGTH_SHORT).show()
                                 }
-                            ) {
-                                Text("Grant Overlay")
-                            }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Grant Overlay")
                         }
                     } else {
                         Button(
@@ -257,19 +374,18 @@ fun ShortsBlockerOnboardingScreen(
                 }
                 OnboardingStep.ACCESSIBILITY -> {
                     if (!isAccessibilityGranted) {
-                         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                                Text("Next")
-                            }
-                            Spacer(modifier=Modifier.width(8.dp))
-                            Button(
-                                onClick = {
+                        Button(
+                            onClick = {
+                                try {
                                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                                     context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Cannot open Accessibility Settings", android.widget.Toast.LENGTH_SHORT).show()
                                 }
-                            ) {
-                                Text("Grant Accessibility")
-                            }
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text("Grant Accessibility")
                         }
                     } else {
                         Button(
@@ -281,40 +397,66 @@ fun ShortsBlockerOnboardingScreen(
                     }
                 }
                 OnboardingStep.BATTERY_OPTIMIZATION -> {
-                    Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.CenterEnd)) {
+                        if (!isBatteryGranted) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                                Text("Skip")
+                            }
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = android.net.Uri.parse("package:${context.packageName}")
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        try {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        } catch (e2: Exception) {}
+                                    }
+                                }
+                            ) {
+                                Text("Fix Battery")
+                            }
+                        } else {
+                            Button(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                                Text("Next")
+                            }
+                        }
+                    }
+                }
+                OnboardingStep.AUTO_START -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.CenterEnd)) {
                         TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
                             Text("Skip")
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                try {
-                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = android.net.Uri.parse("package:${context.packageName}")
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    try {
-                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                        context.startActivity(intent)
-                                    } catch (e2: Exception) {}
-                                }
-                                if (needsAutoStart()) {
-                                    openAutoStartSettings(context)
-                                }
+                                openAutoStartSettings(context)
                             }
                         ) {
-                            Text("Fix Battery")
+                            Text("Enable Auto Start")
                         }
                     }
                 }
                 OnboardingStep.ALL_SET -> {
                     Button(
                         onClick = onFinishOnboarding,
-                        modifier = Modifier.align(Alignment.CenterEnd)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                     ) {
-                        Text("Finish & Start")
+                        Text(
+                            text = "Finish & Start",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
                     }
+                }
+                OnboardingStep.WELCOME, OnboardingStep.HOW_IT_WORKS -> {
+                    // Button is rendered in the page itself
                 }
                 else -> {
                     Button(
@@ -336,8 +478,29 @@ fun ShortsBlockerOnboardingScreen(
 // Simple helper inside here just to detect if it's on without throwing errors, 
 // using the same logic we've used in the rest of the application
 private fun isAccessibilityPermissionGranted(context: android.content.Context): Boolean {
-    val enabledServices = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-    return enabledServices?.contains(context.packageName) == true
+    var isEnabled = false
+    try {
+        val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+        val enabledServices = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        for (service in enabledServices) {
+            if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                isEnabled = true
+                break
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    
+    if (!isEnabled) {
+        try {
+            val enabledServicesStr = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            isEnabled = enabledServicesStr?.contains(context.packageName) == true
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    return isEnabled
 }
 
 @Composable
@@ -346,7 +509,8 @@ fun OnboardingPage(
     description: String,
     icon: ImageVector,
     isAnimated: Boolean,
-    animationType: String = "none"
+    animationType: String = "none",
+    bottomContent: @Composable () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -423,5 +587,9 @@ fun OnboardingPage(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
+        
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        bottomContent()
     }
 }
