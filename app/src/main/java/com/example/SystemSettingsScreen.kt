@@ -90,6 +90,8 @@ fun ShortsBlockerSystemSettingsScreen(
         feedbackImages = uris
     }
 
+    var pauseForPayments by remember { mutableStateOf(sharedPrefs.getBoolean("pause_for_payments", true)) }
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -380,6 +382,27 @@ fun ShortsBlockerSystemSettingsScreen(
                 title = "Manage Permissions",
                 onClick = onNavigateToPermissions
             )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Pause for Payment Apps", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = "Automatically pause accessibility service when a payment app is opened",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = pauseForPayments,
+                    onCheckedChange = {
+                        pauseForPayments = it
+                        sharedPrefs.edit().putBoolean("pause_for_payments", it).apply()
+                    }
+                )
+            }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
@@ -1077,7 +1100,7 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onNavigateBack,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally)
             ) {
                 Text("OK")
             }
@@ -1336,7 +1359,7 @@ fun UpdateDetailsScreen(
                     } else {
                         Button(
                             onClick = onDownload,
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally).height(50.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Download & Install", fontWeight = FontWeight.Bold)

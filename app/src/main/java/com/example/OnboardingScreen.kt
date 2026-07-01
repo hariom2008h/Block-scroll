@@ -80,6 +80,7 @@ fun ShortsBlockerOnboardingScreen(
             } else true
         ) 
     }
+    var isAutoStartClicked by remember { mutableStateOf(false) }
     var isNotificationGranted by remember { 
         mutableStateOf(
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -201,7 +202,7 @@ fun ShortsBlockerOnboardingScreen(
                                 }
                             },
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .width(280.dp)
                                 .height(56.dp),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                         ) {
@@ -226,7 +227,7 @@ fun ShortsBlockerOnboardingScreen(
                                 }
                             },
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .width(280.dp)
                                 .height(56.dp),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                         ) {
@@ -428,15 +429,22 @@ fun ShortsBlockerOnboardingScreen(
                 }
                 OnboardingStep.AUTO_START -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.CenterEnd)) {
-                        TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                            Text("Skip")
-                        }
-                        Button(
-                            onClick = {
-                                openAutoStartSettings(context)
+                        if (!isAutoStartClicked) {
+                            TextButton(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                                Text("Skip")
                             }
-                        ) {
-                            Text("Enable Auto Start")
+                            Button(
+                                onClick = {
+                                    isAutoStartClicked = true
+                                    openAutoStartSettings(context)
+                                }
+                            ) {
+                                Text("Enable Auto Start")
+                            }
+                        } else {
+                            Button(onClick = { coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
+                                Text("Next")
+                            }
                         }
                     }
                 }
@@ -444,7 +452,8 @@ fun ShortsBlockerOnboardingScreen(
                     Button(
                         onClick = onFinishOnboarding,
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .width(280.dp)
+                            .align(Alignment.Center)
                             .height(56.dp),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                     ) {

@@ -975,7 +975,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                             Toast.makeText(context, "Not a Xiaomi device or settings not found.", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                 ) {
                     Text("Force Open MIUI Battery Saver")
@@ -989,7 +989,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                         sharedPrefs.edit().putBoolean("show_developer_settings", false).apply()
                         Toast.makeText(context, "Developer Settings Hidden", Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally)
                 ) {
                     Text("Hide Developer Settings")
                 }

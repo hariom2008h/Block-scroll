@@ -50,9 +50,25 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastReliefUpdateTime = 0L
 
-    private fun handleReliefTime(currentTime: Long): Boolean {
+    private fun handleReliefTime(currentTime: Long, packageName: String): Boolean {
         val dailyReliefMinutes = sharedPreferences?.getInt("daily_relief_minutes", 0) ?: 0
         if (dailyReliefMinutes <= 0) return false
+        
+        val allowYt = sharedPreferences?.getBoolean("allowance_youtube", true) ?: true
+        val allowIg = sharedPreferences?.getBoolean("allowance_instagram", true) ?: true
+        val allowSnap = sharedPreferences?.getBoolean("allowance_snapchat", true) ?: true
+        
+        val isAppAllowedForRelief = when {
+            packageName.contains("youtube") -> allowYt
+            packageName.contains("instagram") -> allowIg
+            packageName.contains("snapchat") -> allowSnap
+            else -> false
+        }
+        
+        if (!isAppAllowedForRelief) {
+            lastReliefUpdateTime = 0L
+            return false
+        }
         
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
         val today = sdf.format(java.util.Date(currentTime))
@@ -117,7 +133,7 @@ class ShortsBlockerService : AccessibilityService() {
                                         
                                         isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                                         if (isWatchingShorts) {
-                                            val isReliefActive = handleReliefTime(currentTime)
+                                            val isReliefActive = handleReliefTime(currentTime, packageName)
                                             lastShortsActivityTime = currentTime
                                             if (!isReliefActive && currentTime >= lastUnlockTime + sessionCooldownMs) {
                                                 val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
@@ -434,10 +450,13 @@ class ShortsBlockerService : AccessibilityService() {
             )
             
             if (paymentApps.contains(packageName)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    disableSelf()
+                val pauseForPayments = sharedPreferences?.getBoolean("pause_for_payments", true) ?: true
+                if (pauseForPayments) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        disableSelf()
+                    }
+                    return
                 }
-                return
             }
 
             val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
@@ -521,7 +540,7 @@ class ShortsBlockerService : AccessibilityService() {
 
                         if (isAddictiveMedia) {
                             val currentTimeMs = System.currentTimeMillis()
-                            val isReliefActive = handleReliefTime(currentTimeMs)
+                            val isReliefActive = handleReliefTime(currentTimeMs, packageName)
                             lastShortsActivityTime = currentTimeMs
                             val strictModeYT = sharedPreferences?.getBoolean("strict_mode_youtube", false) ?: false
                             val strictModeIG = sharedPreferences?.getBoolean("strict_mode_instagram", false) ?: false
