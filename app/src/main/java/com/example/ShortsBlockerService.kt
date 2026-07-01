@@ -595,7 +595,8 @@ class ShortsBlockerService : AccessibilityService() {
         nodeCount[0]++
 
         try {
-            val viewId = node.viewIdResourceName ?: ""
+            val viewId = node.viewIdResourceName?.lowercase() ?: ""
+            val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
 
             if (viewId.isNotEmpty()) {
                 // Ignore Memories and Camera screens so they are never blocked
@@ -627,7 +628,7 @@ class ShortsBlockerService : AccessibilityService() {
             }
 
             // Ignore bottom navigation bar elements so we don't block normal feeds accidentally
-            val isNavElement = viewId.contains("tab") || viewId.contains("nav") || viewId.contains("bottom") || viewId.contains("bar") || viewId.contains("menu") || viewId.contains("icon")
+            val isNavElement = viewId.contains("tab") || viewId.contains("nav") || viewId.contains("bottom") || viewId.contains("bar") || viewId.contains("menu") || viewId.contains("icon") || viewId.contains("badge") || viewId.contains("button")
 
             if (!isNavElement && viewId.isNotEmpty()) {
                 // Filter YouTube Shorts player elements precisely
@@ -644,30 +645,36 @@ class ShortsBlockerService : AccessibilityService() {
                 }
 
                 // Filter Instagram Reels elements precisely
-                if (blockIG && (viewId.contains("clips_video_container") ||
-                    viewId.contains("reels_viewer_pager") ||
-                    viewId.contains("clips_viewer_container") ||
-                    viewId.contains("reels_video_player_layout") ||
-                    viewId.contains("clips_post_container") ||
+                if (blockIG && (
+                    viewId.contains("clips_video") ||
+                    viewId.contains("reels_viewer") ||
+                    viewId.contains("clips_viewer") ||
+                    viewId.contains("reels_video") ||
+                    viewId.contains("clips_post") ||
                     viewId.contains("clips_layout") ||
-                    viewId.contains("reels_clip_container") ||
-                    viewId.contains("clips_viewer_view_pager"))) {
+                    viewId.contains("reels_clip") ||
+                    viewId.contains("clips_item") ||
+                    viewId.contains("layout_clips_viewer") ||
+                    viewId.endsWith(":id/reels_viewer_root") ||
+                    viewId.endsWith(":id/clips_viewer_root") ||
+                    viewId.contains("reels_video_player_layout")
+                )) {
                     return 1
                 }
 
                 // Filter Snapchat Spotlight elements precisely
-                if (blockSC && (
-                    viewId.contains("spotlight_video_container") || 
-                    viewId.contains("spotlight_player") ||
-                    viewId.contains("spotlight_video") ||
-                    viewId.contains("discover_playback") ||
-                    viewId.contains("neon_spotlight_play_view") || 
-                    viewId.contains("neon_spotlight_playback_view") ||
-                    viewId.contains("spotlight_page_content") ||
-                    viewId.contains("ngs_spotlight") ||
-                    viewId.endsWith(":id/spotlight") ||
-                    (viewId.contains("spotlight") && (viewId.contains("player") || viewId.contains("video") || viewId.contains("view") || viewId.contains("play")))
-                )) {
+                if (blockSC && viewId.contains("spotlight")) {
+                    return 1
+                }
+            }
+            
+            // Fallback contentDescription checks for obfuscated UI
+            if (contentDesc.isNotEmpty() && !isNavElement) {
+                val packageName = node.packageName?.toString()?.lowercase() ?: ""
+                if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
+                    return 1
+                }
+                if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
                     return 1
                 }
             }
