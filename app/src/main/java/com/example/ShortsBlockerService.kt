@@ -598,6 +598,11 @@ class ShortsBlockerService : AccessibilityService() {
             val viewId = node.viewIdResourceName ?: ""
 
             if (viewId.isNotEmpty()) {
+                // Ignore Memories and Camera screens so they are never blocked
+                if (viewId.contains("memories") || viewId.contains("gallery") || viewId.contains("camera")) {
+                    return 2
+                }
+
                 // If it's a Chat/DM, return 2 immediately if allowChatReels is true
                 if (allowChatReels && (viewId.contains("message_list") || 
                     viewId.contains("direct_thread") || 
@@ -605,7 +610,11 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.contains("chat_feed") || 
                     viewId.contains("direct_reply") ||
                     viewId.contains("conversation") ||
-                    viewId.contains("direct_message")
+                    viewId.contains("direct_message") ||
+                    viewId.contains("chat_layout") ||
+                    viewId.contains("messaging") ||
+                    viewId.contains("chat_panel") ||
+                    viewId.contains("chat_")
                 )) {
                     return 2
                 }
@@ -645,10 +654,11 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.contains("spotlight_video_container") || 
                     viewId.contains("spotlight_player") ||
                     viewId.contains("spotlight_video") ||
+                    viewId.contains("discover_playback") ||
                     viewId.contains("neon_spotlight_play_view") || 
                     viewId.contains("neon_spotlight_playback_view") ||
                     viewId.contains("spotlight_page_content") ||
-                    (viewId.contains("spotlight") && viewId.contains("player"))
+                    (viewId.contains("spotlight") && (viewId.contains("player") || viewId.contains("video") || viewId.contains("view") || viewId.contains("play")))
                 )) {
                     return 1
                 }
