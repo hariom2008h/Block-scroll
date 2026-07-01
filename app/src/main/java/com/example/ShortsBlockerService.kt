@@ -130,9 +130,7 @@ class ShortsBlockerService : AccessibilityService() {
                                         val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
                                         val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                                         val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
-                                        val allowChatReels = sharedPreferences?.getBoolean("allow_chat_reels", true) ?: true
-                                        
-                                        isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, allowChatReels, 0, IntArray(1) { 0 }) == 1
+                                        isWatchingShorts = checkNodeForShortsOrReels(rootNode, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                                         if (isWatchingShorts) {
                                             val isReliefActive = handleReliefTime(currentTime, packageName)
                                             lastShortsActivityTime = currentTime
@@ -486,7 +484,6 @@ class ShortsBlockerService : AccessibilityService() {
                 val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
                 val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                 val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
-                val allowChatReels = sharedPreferences?.getBoolean("allow_chat_reels", true) ?: true
 
                 // Handle layout traversal on a background thread to prevent ANRs.
                 if (!isChecking.compareAndSet(false, true)) {
@@ -528,14 +525,14 @@ class ShortsBlockerService : AccessibilityService() {
 
                         // Check whole visible active window layout hierarchy
                         if (activeRoot != null) {
-                            isAddictiveMedia = checkNodeForShortsOrReels(activeRoot, blockYT, blockIG, blockSC, allowChatReels, 0, IntArray(1) { 0 }) == 1
+                            isAddictiveMedia = checkNodeForShortsOrReels(activeRoot, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                             try {
                                 activeRoot.recycle()
                             } catch (e: Exception) { /* ignore */ }
                         } else {
                             val backupRoot = try { rootInActiveWindow } catch (e: Exception) { null }
                             if (backupRoot != null) {
-                                isAddictiveMedia = checkNodeForShortsOrReels(backupRoot, blockYT, blockIG, blockSC, allowChatReels, 0, IntArray(1) { 0 }) == 1
+                                isAddictiveMedia = checkNodeForShortsOrReels(backupRoot, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                                 try { backupRoot.recycle() } catch (e: Exception) {}
                             }
                         }
@@ -589,9 +586,9 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
-    private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, allowChatReels: Boolean, depth: Int, nodeCount: IntArray): Int {
-        if (node == null || !node.isVisibleToUser) return 0
-        if (depth > 40 || nodeCount[0] > 1000) return 0 // Max 40 depth, 1000 nodes
+    private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int, nodeCount: IntArray): Boolean {
+        if (node == null || !node.isVisibleToUser) return false
+        if (depth > 40 || nodeCount[0] > 1000) return false // Max 40 depth, 1000 nodes
         nodeCount[0]++
 
         try {
@@ -601,29 +598,7 @@ class ShortsBlockerService : AccessibilityService() {
             if (viewId.isNotEmpty()) {
                 // Ignore Memories and Camera screens so they are never blocked
                 if (viewId.contains("memories") || viewId.contains("gallery") || viewId.contains("camera")) {
-                    return 2
-                }
-
-                // If it's a Chat/DM, return 2 immediately if allowChatReels is true
-                if (allowChatReels && (
-                    viewId.endsWith(":id/message_list") || 
-                    viewId.endsWith(":id/direct_thread_layout") || 
-                    viewId.endsWith(":id/chat_message_list") || 
-                    viewId.endsWith(":id/chat_layout") ||
-                    viewId.endsWith(":id/conversation_layout") ||
-                    viewId.endsWith(":id/direct_edit_text") || // Instagram reply bar in DM reels
-                    viewId.endsWith(":id/message_edit_text") ||
-                    viewId.endsWith(":id/chat_input_text") ||
-                    viewId.endsWith(":id/thread_list") ||
-                    viewId.endsWith(":id/direct_message_list") ||
-                    viewId.endsWith(":id/reply_bar") ||
-                    viewId.endsWith(":id/chat_input_bar") ||
-                    viewId.endsWith(":id/chat_input") ||
-                    viewId.endsWith(":id/chat_input_field") ||
-                    viewId == "com.instagram.android:id/direct_thread_layout" ||
-                    viewId == "com.instagram.android:id/message_list"
-                )) {
-                    return 2
+                    return false
                 }
             }
 
@@ -641,7 +616,7 @@ class ShortsBlockerService : AccessibilityService() {
                     (viewId.contains("shorts_") && viewId.contains("player")) ||
                     (viewId.contains("reel_") && viewId.contains("player"))
                 )) {
-                    return 1
+                    return true
                 }
 
                 // Filter Instagram Reels elements precisely
@@ -659,12 +634,12 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.endsWith(":id/clips_viewer_root") ||
                     viewId.contains("reels_video_player_layout")
                 )) {
-                    return 1
+                    return true
                 }
 
                 // Filter Snapchat Spotlight elements precisely
                 if (blockSC && viewId.contains("spotlight")) {
-                    return 1
+                    return true
                 }
             }
             
@@ -672,10 +647,10 @@ class ShortsBlockerService : AccessibilityService() {
             if (contentDesc.isNotEmpty() && !isNavElement) {
                 val packageName = node.packageName?.toString()?.lowercase() ?: ""
                 if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
-                    return 1
+                    return true
                 }
                 if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
-                    return 1
+                    return true
                 }
             }
 
@@ -689,24 +664,21 @@ class ShortsBlockerService : AccessibilityService() {
                     null
                 }
                 if (child != null) {
-                    val result = checkNodeForShortsOrReels(child, blockYT, blockIG, blockSC, allowChatReels, depth + 1, nodeCount)
+                    val result = checkNodeForShortsOrReels(child, blockYT, blockIG, blockSC, depth + 1, nodeCount)
                     try {
                         child.recycle()
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
-                    if (result == 2) {
-                        return 2 // Chat overrides Shorts
-                    } else if (result == 1) {
-                        foundShorts = true
+                    if (result) {
+                        return true
                     }
                 }
             }
-            if (foundShorts) return 1
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        return 0
+        return false
     }
 
     private fun showFrictionOverlay() {

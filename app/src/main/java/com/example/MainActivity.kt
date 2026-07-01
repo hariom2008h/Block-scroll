@@ -768,9 +768,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     var hideLauncherIcon by remember {
         mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
     }
-    var allowChatReels by remember {
-        mutableStateOf(sharedPrefs.getBoolean("allow_chat_reels", true))
-    }
 
     var showDeveloperSettings by remember {
         mutableStateOf(sharedPrefs.getBoolean("show_developer_settings", false))
@@ -902,32 +899,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                     sharedPrefs.edit().putBoolean("strict_mode_snapchat", it).apply()
                 }
             )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("Chat/DM Exceptions", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Allow Reels in Chats", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        text = "Do not block Reels or Shorts sent in Direct Messages.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = allowChatReels,
-                    onCheckedChange = { isAllowed ->
-                        allowChatReels = isAllowed
-                        sharedPrefs.edit().putBoolean("allow_chat_reels", isAllowed).apply()
-                    }
-                )
-            }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
