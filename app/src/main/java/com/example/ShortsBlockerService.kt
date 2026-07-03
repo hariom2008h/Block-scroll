@@ -634,7 +634,7 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.endsWith(":id/clips_viewer_root") ||
                     viewId.contains("reels_video_player_layout")
                 )) {
-                    if (isInsideSuggestedReels(node)) return false
+                    if (isCarouselPreview(node)) return false
                     return true
                 }
 
@@ -648,7 +648,7 @@ class ShortsBlockerService : AccessibilityService() {
             if (contentDesc.isNotEmpty() && !isNavElement) {
                 val packageName = node.packageName?.toString()?.lowercase() ?: ""
                 if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
-                    if (isInsideSuggestedReels(node)) return false
+                    if (isCarouselPreview(node)) return false
                     return true
                 }
                 if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
@@ -683,34 +683,58 @@ class ShortsBlockerService : AccessibilityService() {
         return false
     }
 
-    private fun isInsideSuggestedReels(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
-        var current = node
-        var depth = 0
-        while (current != null && depth < 10) {
-            val parent = current.parent
-            if (parent != null) {
-                for (i in 0 until parent.childCount) {
-                    val sibling = try { parent.getChild(i) } catch (e: Exception) { null }
-                    if (sibling != null) {
-                        val text = sibling.text?.toString()?.lowercase() ?: ""
-                        val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
-                        if (text.contains("suggested reels") || text.contains("suggested for you") ||
-                            contentDesc.contains("suggested reels") || contentDesc.contains("suggested for you")) {
-                            sibling.recycle()
-                            parent.recycle()
-                            if (current != node) current.recycle()
-                            return true
-                        }
-                        sibling.recycle()
-                    }
+    private fun isCarouselPreview(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+
+        try {
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            
+            var containerHeight = android.content.res.Resources.getSystem().displayMetrics.heightPixels
+            val window = node.window
+            if (window != null) {
+                val windowRect = android.graphics.Rect()
+                window.getBoundsInScreen(windowRect)
+                if (windowRect.height() > 0) {
+                    containerHeight = windowRect.height()
                 }
             }
-            val next = parent
-            if (current != node) {
-                current.recycle()
+            
+            // If the element's height is less than 75% of its window height, it's likely a feed preview
+            if (rect.height() > 0 && rect.height() < containerHeight * 0.75) {
+                return true
             }
-            current = next
-            depth++
+
+            var current = node
+            var depth = 0
+            while (current != null && depth < 10) {
+                val parent = current.parent
+                if (parent != null) {
+                    for (i in 0 until parent.childCount) {
+                        val sibling = try { parent.getChild(i) } catch (e: Exception) { null }
+                        if (sibling != null) {
+                            val text = sibling.text?.toString()?.lowercase() ?: ""
+                            val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
+                            if (text.contains("suggested reels") || text.contains("suggested for you") ||
+                                contentDesc.contains("suggested reels") || contentDesc.contains("suggested for you")) {
+                                sibling.recycle()
+                                parent.recycle()
+                                if (current != node) current.recycle()
+                                return true
+                            }
+                            sibling.recycle()
+                        }
+                    }
+                }
+                val next = parent
+                if (current != node) {
+                    current.recycle()
+                }
+                current = next
+                depth++
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return false
     }
