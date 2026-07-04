@@ -675,8 +675,7 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.endsWith(":id/clips_viewer_root") ||
                     viewId.contains("reels_video_player_layout")
                 )) {
-                    if (isSuggestedReelsContainer(node)) return false
-                    if (isInsideInstagramCamera(node)) return false
+                    if (isSafeInstagramContext(node)) return false
                     return true
                 }
 
@@ -696,8 +695,7 @@ class ShortsBlockerService : AccessibilityService() {
             if (contentDesc.isNotEmpty() && !isNavElement) {
                 val packageName = node.packageName?.toString()?.lowercase() ?: ""
                 if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
-                    if (isSuggestedReelsContainer(node)) return false
-                    if (isInsideInstagramCamera(node)) return false
+                    if (isSafeInstagramContext(node)) return false
                     return true
                 }
                 if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
@@ -732,13 +730,36 @@ class ShortsBlockerService : AccessibilityService() {
         return false
     }
 
-    private fun isSuggestedReelsContainer(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+    private fun isSafeInstagramContext(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
         
         try {
             var current = node
             var depth = 0
-            while (current != null && depth < 10) {
+            
+            while (current != null && depth < 20) {
+                val className = current.className?.toString()?.lowercase() ?: ""
+                val viewId = current.viewIdResourceName?.lowercase() ?: ""
+                
+                // 1. Direct Message Chat check (safe)
+                if (viewId.contains("direct_thread") || viewId.contains("direct_edit_text") || 
+                    viewId.contains("message_list") || className.contains("directthread") ||
+                    viewId.contains("direct_reel_share")) {
+                    if (current != node) current.recycle()
+                    return true
+                }
+                
+                // 2. Camera/Creation check (safe)
+                if (className.contains("cameracaptureactivity") || 
+                    className.contains("creationactivity") ||
+                    viewId.contains("camera_shutter") || 
+                    viewId.contains("capture_button") ||
+                    viewId.contains("story_compose")) {
+                    if (current != node) current.recycle()
+                    return true
+                }
+                
+                // 3. Search immediate children of ancestors for specific markers
                 val parent = current.parent
                 if (parent != null) {
                     for (i in 0 until parent.childCount) {
@@ -746,6 +767,9 @@ class ShortsBlockerService : AccessibilityService() {
                         if (sibling != null) {
                             val text = sibling.text?.toString()?.lowercase() ?: ""
                             val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
+                            val sViewId = sibling.viewIdResourceName?.lowercase() ?: ""
+                            
+                            // Suggested Reels check
                             if (text.contains("suggested reels") || text.contains("suggested for you") ||
                                 contentDesc.contains("suggested reels") || contentDesc.contains("suggested for you")) {
                                 sibling.recycle()
@@ -753,10 +777,32 @@ class ShortsBlockerService : AccessibilityService() {
                                 if (current != node) current.recycle()
                                 return true
                             }
+                            
+                            // Explicit Camera Shutter/Creation elements
+                            if (sViewId.contains("camera_shutter") || sViewId.contains("capture_button") ||
+                                sViewId.contains("story_compose") || 
+                                (contentDesc == "take picture" && sViewId.contains("camera")) || 
+                                (contentDesc == "record video" && sViewId.contains("camera"))) {
+                                sibling.recycle()
+                                parent.recycle()
+                                if (current != node) current.recycle()
+                                return true
+                            }
+
+                            // Explicit DM input
+                            if (sViewId.contains("direct_edit_text") || sViewId.contains("chat_input") ||
+                                sViewId.contains("message_input")) {
+                                sibling.recycle()
+                                parent.recycle()
+                                if (current != node) current.recycle()
+                                return true
+                            }
+
                             sibling.recycle()
                         }
                     }
                 }
+                
                 val next = parent
                 if (current != node) {
                     current.recycle()
@@ -766,62 +812,6 @@ class ShortsBlockerService : AccessibilityService() {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-        return false
-    }
-
-    private fun isInsideInstagramCamera(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
-        if (node == null) return false
-        
-        try {
-            // Get the root node of the current window
-            var root = node
-            var depth = 0
-            while (root?.parent != null && depth < 20) {
-                val next = root.parent
-                if (root != node) {
-                    root.recycle()
-                }
-                root = next
-                depth++
-            }
-            
-            // Search the entire window for camera indicators
-            val isCamera = hasCameraMarkers(root, 0, IntArray(1) { 0 })
-            if (root != node) root?.recycle()
-            
-            return isCamera
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return false
-    }
-    
-    private fun hasCameraMarkers(node: android.view.accessibility.AccessibilityNodeInfo?, depth: Int, nodeCount: IntArray): Boolean {
-        if (node == null) return false
-        if (depth > 40 || nodeCount[0] > 1000) return false
-        nodeCount[0]++
-        
-        val viewId = node.viewIdResourceName?.lowercase() ?: ""
-        val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
-        val text = node.text?.toString()?.lowercase() ?: ""
-        
-        if (viewId.contains("camera_switch") || viewId.contains("camera_shutter") || 
-            viewId.contains("story_compose") || contentDesc.contains("switch camera") || 
-            contentDesc.contains("take picture") || contentDesc.contains("record video") ||
-            viewId.contains("creation_") || viewId.contains("capture_button") ||
-            viewId.contains("layout_camera") || viewId.contains("camera_container") ||
-            text == "story" || text == "post" && contentDesc == "story") {
-            return true
-        }
-        
-        for (i in 0 until node.childCount) {
-            val child = try { node.getChild(i) } catch (e: Exception) { null }
-            if (child != null) {
-                val result = hasCameraMarkers(child, depth + 1, nodeCount)
-                try { child.recycle() } catch (e: Exception) {}
-                if (result) return true
-            }
         }
         return false
     }
