@@ -586,6 +586,47 @@ class ShortsBlockerService : AccessibilityService() {
         }
     }
 
+    private fun isSafeScreen(node: android.view.accessibility.AccessibilityNodeInfo?, packageName: String, depth: Int = 0, nodeCount: IntArray = IntArray(1) { 0 }): Boolean {
+        if (node == null) return false
+        if (depth > 40 || nodeCount[0] > 1000) return false
+        nodeCount[0]++
+
+        try {
+            val text = node.text?.toString()?.lowercase() ?: ""
+            val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val viewId = node.viewIdResourceName?.lowercase() ?: ""
+
+            if (packageName.contains("instagram")) {
+                // Check for Camera/Story Creation markers
+                if (viewId.contains("camera_switch") || viewId.contains("camera_shutter") || 
+                    viewId.contains("story_compose") || contentDesc.contains("switch camera") || 
+                    contentDesc.contains("take picture") || contentDesc.contains("record video") ||
+                    viewId.contains("creation_") || viewId.contains("capture_button")) {
+                    return true
+                }
+
+                // Check for direct messages
+                if (viewId.contains("direct_thread_layout") || viewId.contains("message_list") || 
+                    viewId.contains("chat_input") || viewId.contains("direct_edit_text") ||
+                    viewId.contains("thread_list")) {
+                    return true
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = try { node.getChild(i) } catch (e: Exception) { null }
+                if (child != null) {
+                    val result = isSafeScreen(child, packageName, depth + 1, nodeCount)
+                    try { child.recycle() } catch (e: Exception) {}
+                    if (result) return true
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
     private fun checkNodeForShortsOrReels(node: android.view.accessibility.AccessibilityNodeInfo?, blockYT: Boolean, blockIG: Boolean, blockSC: Boolean, depth: Int, nodeCount: IntArray): Boolean {
         if (node == null || !node.isVisibleToUser) return false
         if (depth > 40 || nodeCount[0] > 1000) return false // Max 40 depth, 1000 nodes
@@ -616,7 +657,7 @@ class ShortsBlockerService : AccessibilityService() {
                     (viewId.contains("shorts_") && viewId.contains("player")) ||
                     (viewId.contains("reel_") && viewId.contains("player"))
                 )) {
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
 
                 // Filter Instagram Reels elements precisely
@@ -634,14 +675,21 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.endsWith(":id/clips_viewer_root") ||
                     viewId.contains("reels_video_player_layout")
                 )) {
-                    if (isCarouselPreview(node)) return false
-                    if (isInsideInstagramCamera(node)) return false
-                    return true
+                    if (isNodeFullScreen(node)) {
+                        if (isInsideInstagramCamera(node)) return false
+                        return true
+                    }
                 }
 
                 // Filter Snapchat Spotlight elements precisely
-                if (blockSC && viewId.contains("spotlight")) {
-                    return true
+                if (blockSC && (
+                    viewId.contains("spotlight") ||
+                    viewId.contains("discover_playback") ||
+                    viewId.contains("ngs_spotlight") ||
+                    viewId.contains("neon_spotlight") ||
+                    viewId.contains("playback_view")
+                )) {
+                    if (isNodeFullScreen(node)) return true
                 }
             }
             
@@ -649,12 +697,13 @@ class ShortsBlockerService : AccessibilityService() {
             if (contentDesc.isNotEmpty() && !isNavElement) {
                 val packageName = node.packageName?.toString()?.lowercase() ?: ""
                 if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
-                    if (isCarouselPreview(node)) return false
-                    if (isInsideInstagramCamera(node)) return false
-                    return true
+                    if (isNodeFullScreen(node)) {
+                        if (isInsideInstagramCamera(node)) return false
+                        return true
+                    }
                 }
                 if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
             }
 
@@ -685,56 +734,31 @@ class ShortsBlockerService : AccessibilityService() {
         return false
     }
 
-    private fun isCarouselPreview(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+    private fun isNodeFullScreen(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
-
+        
         try {
             val rect = android.graphics.Rect()
             node.getBoundsInScreen(rect)
             
             var containerHeight = android.content.res.Resources.getSystem().displayMetrics.heightPixels
+            var containerWidth = android.content.res.Resources.getSystem().displayMetrics.widthPixels
+            
             val window = node.window
             if (window != null) {
                 val windowRect = android.graphics.Rect()
                 window.getBoundsInScreen(windowRect)
                 if (windowRect.height() > 0) {
                     containerHeight = windowRect.height()
+                    containerWidth = windowRect.width()
                 }
             }
             
-            // If the element's height is less than 75% of its window height, it's likely a feed preview
-            if (rect.height() > 0 && rect.height() < containerHeight * 0.75) {
-                return true
-            }
-
-            var current = node
-            var depth = 0
-            while (current != null && depth < 10) {
-                val parent = current.parent
-                if (parent != null) {
-                    for (i in 0 until parent.childCount) {
-                        val sibling = try { parent.getChild(i) } catch (e: Exception) { null }
-                        if (sibling != null) {
-                            val text = sibling.text?.toString()?.lowercase() ?: ""
-                            val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
-                            if (text.contains("suggested reels") || text.contains("suggested for you") ||
-                                contentDesc.contains("suggested reels") || contentDesc.contains("suggested for you")) {
-                                sibling.recycle()
-                                parent.recycle()
-                                if (current != node) current.recycle()
-                                return true
-                            }
-                            sibling.recycle()
-                        }
-                    }
-                }
-                val next = parent
-                if (current != node) {
-                    current.recycle()
-                }
-                current = next
-                depth++
-            }
+            // A full-screen shorts/reels player will take up the vast majority of the screen/window.
+            // We use 60% height and 60% width to safely distinguish from feed posts and carousels.
+            // Feed carousels are typically < 50% width and < 50% height.
+            // Normal feed videos are typically 100% width but < 60% height.
+            return rect.height() > (containerHeight * 0.60) && rect.width() > (containerWidth * 0.60)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -743,60 +767,56 @@ class ShortsBlockerService : AccessibilityService() {
 
     private fun isInsideInstagramCamera(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
-
+        
         try {
-            var current = node
+            // Get the root node of the current window
+            var root = node
             var depth = 0
-            while (current != null && depth < 10) {
-                val className = current.className?.toString()?.lowercase() ?: ""
-                val viewId = current.viewIdResourceName?.lowercase() ?: ""
-                
-                if (className.contains("cameracaptureactivity") || 
-                    className.contains("creationactivity") ||
-                    viewId.contains("camera") || 
-                    viewId.contains("story_compose") ||
-                    viewId.contains("shutter_button") ||
-                    viewId.contains("capture_button")) {
-                    if (current != node) current.recycle()
-                    return true
+            while (root?.parent != null && depth < 20) {
+                val next = root.parent
+                if (root != node) {
+                    root.recycle()
                 }
-
-                val parent = current.parent
-                if (parent != null) {
-                    for (i in 0 until parent.childCount) {
-                        val sibling = try { parent.getChild(i) } catch (e: Exception) { null }
-                        if (sibling != null) {
-                            val text = sibling.text?.toString()?.lowercase() ?: ""
-                            val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
-                            val sViewId = sibling.viewIdResourceName?.lowercase() ?: ""
-                            
-                            if (contentDesc.contains("switch camera") ||
-                                contentDesc.contains("take picture") ||
-                                contentDesc.contains("record video") ||
-                                contentDesc.contains("shutter") ||
-                                sViewId.contains("camera_switch") ||
-                                sViewId.contains("camera_shutter") ||
-                                sViewId.contains("story_compose") ||
-                                sViewId.contains("creation_") ||
-                                text == "story") {
-                                sibling.recycle()
-                                parent.recycle()
-                                if (current != node) current.recycle()
-                                return true
-                            }
-                            sibling.recycle()
-                        }
-                    }
-                }
-                val next = parent
-                if (current != node) {
-                    current.recycle()
-                }
-                current = next
+                root = next
                 depth++
             }
+            
+            // Search the entire window for camera indicators
+            val isCamera = hasCameraMarkers(root, 0, IntArray(1) { 0 })
+            if (root != node) root?.recycle()
+            
+            return isCamera
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+        return false
+    }
+    
+    private fun hasCameraMarkers(node: android.view.accessibility.AccessibilityNodeInfo?, depth: Int, nodeCount: IntArray): Boolean {
+        if (node == null) return false
+        if (depth > 40 || nodeCount[0] > 1000) return false
+        nodeCount[0]++
+        
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+        val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val text = node.text?.toString()?.lowercase() ?: ""
+        
+        if (viewId.contains("camera_switch") || viewId.contains("camera_shutter") || 
+            viewId.contains("story_compose") || contentDesc.contains("switch camera") || 
+            contentDesc.contains("take picture") || contentDesc.contains("record video") ||
+            viewId.contains("creation_") || viewId.contains("capture_button") ||
+            viewId.contains("layout_camera") || viewId.contains("camera_container") ||
+            text == "story" || text == "post" && contentDesc == "story") {
+            return true
+        }
+        
+        for (i in 0 until node.childCount) {
+            val child = try { node.getChild(i) } catch (e: Exception) { null }
+            if (child != null) {
+                val result = hasCameraMarkers(child, depth + 1, nodeCount)
+                try { child.recycle() } catch (e: Exception) {}
+                if (result) return true
+            }
         }
         return false
     }
