@@ -635,6 +635,7 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.contains("reels_video_player_layout")
                 )) {
                     if (isCarouselPreview(node)) return false
+                    if (isInsideInstagramCamera(node)) return false
                     return true
                 }
 
@@ -649,6 +650,7 @@ class ShortsBlockerService : AccessibilityService() {
                 val packageName = node.packageName?.toString()?.lowercase() ?: ""
                 if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
                     if (isCarouselPreview(node)) return false
+                    if (isInsideInstagramCamera(node)) return false
                     return true
                 }
                 if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
@@ -717,6 +719,66 @@ class ShortsBlockerService : AccessibilityService() {
                             val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
                             if (text.contains("suggested reels") || text.contains("suggested for you") ||
                                 contentDesc.contains("suggested reels") || contentDesc.contains("suggested for you")) {
+                                sibling.recycle()
+                                parent.recycle()
+                                if (current != node) current.recycle()
+                                return true
+                            }
+                            sibling.recycle()
+                        }
+                    }
+                }
+                val next = parent
+                if (current != node) {
+                    current.recycle()
+                }
+                current = next
+                depth++
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
+    private fun isInsideInstagramCamera(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+
+        try {
+            var current = node
+            var depth = 0
+            while (current != null && depth < 10) {
+                val className = current.className?.toString()?.lowercase() ?: ""
+                val viewId = current.viewIdResourceName?.lowercase() ?: ""
+                
+                if (className.contains("cameracaptureactivity") || 
+                    className.contains("creationactivity") ||
+                    viewId.contains("camera") || 
+                    viewId.contains("story_compose") ||
+                    viewId.contains("shutter_button") ||
+                    viewId.contains("capture_button")) {
+                    if (current != node) current.recycle()
+                    return true
+                }
+
+                val parent = current.parent
+                if (parent != null) {
+                    for (i in 0 until parent.childCount) {
+                        val sibling = try { parent.getChild(i) } catch (e: Exception) { null }
+                        if (sibling != null) {
+                            val text = sibling.text?.toString()?.lowercase() ?: ""
+                            val contentDesc = sibling.contentDescription?.toString()?.lowercase() ?: ""
+                            val sViewId = sibling.viewIdResourceName?.lowercase() ?: ""
+                            
+                            if (contentDesc.contains("switch camera") ||
+                                contentDesc.contains("take picture") ||
+                                contentDesc.contains("record video") ||
+                                contentDesc.contains("shutter") ||
+                                sViewId.contains("camera_switch") ||
+                                sViewId.contains("camera_shutter") ||
+                                sViewId.contains("story_compose") ||
+                                sViewId.contains("creation_") ||
+                                text == "story") {
                                 sibling.recycle()
                                 parent.recycle()
                                 if (current != node) current.recycle()
