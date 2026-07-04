@@ -657,7 +657,7 @@ class ShortsBlockerService : AccessibilityService() {
                     (viewId.contains("shorts_") && viewId.contains("player")) ||
                     (viewId.contains("reel_") && viewId.contains("player"))
                 )) {
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
 
                 // Filter Instagram Reels elements precisely
@@ -676,7 +676,7 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.contains("reels_video_player_layout")
                 )) {
                     if (isSafeInstagramContext(node)) return false
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
 
                 // Filter Snapchat Spotlight elements precisely
@@ -687,7 +687,7 @@ class ShortsBlockerService : AccessibilityService() {
                     viewId.contains("neon_spotlight") ||
                     viewId.contains("playback_view")
                 )) {
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
             }
             
@@ -696,10 +696,10 @@ class ShortsBlockerService : AccessibilityService() {
                 val packageName = node.packageName?.toString()?.lowercase() ?: ""
                 if (blockIG && packageName.contains("instagram") && (contentDesc.contains("reels") || contentDesc.contains("clips")) && !contentDesc.contains("tab") && !contentDesc.contains("button") && !contentDesc.contains("tray")) {
                     if (isSafeInstagramContext(node)) return false
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
                 if (blockSC && packageName.contains("snapchat") && contentDesc.contains("spotlight") && !contentDesc.contains("tab") && !contentDesc.contains("button")) {
-                    return true
+                    if (isNodeFullScreen(node)) return true
                 }
             }
 
@@ -724,6 +724,37 @@ class ShortsBlockerService : AccessibilityService() {
                     }
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
+    private fun isNodeFullScreen(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        
+        try {
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            
+            var containerHeight = android.content.res.Resources.getSystem().displayMetrics.heightPixels
+            var containerWidth = android.content.res.Resources.getSystem().displayMetrics.widthPixels
+            
+            val window = node.window
+            if (window != null) {
+                val windowRect = android.graphics.Rect()
+                window.getBoundsInScreen(windowRect)
+                if (windowRect.height() > 0) {
+                    containerHeight = windowRect.height()
+                    containerWidth = windowRect.width()
+                }
+            }
+            
+            // A full-screen shorts/reels player will take up the vast majority of the screen/window.
+            // We use 75% height and 75% width to safely distinguish from feed posts and carousels.
+            // Feed carousels and 4:5 feed videos are typically < 70% height.
+            // Full screen reels are typically > 90% height.
+            return rect.height() > (containerHeight * 0.75) && rect.width() > (containerWidth * 0.75)
         } catch (e: Exception) {
             e.printStackTrace()
         }
