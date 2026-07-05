@@ -657,6 +657,7 @@ class ShortsBlockerService : AccessibilityService() {
                     (viewId.contains("shorts_") && viewId.contains("player")) ||
                     (viewId.contains("reel_") && viewId.contains("player"))
                 )) {
+                    if (isInsideYouTubeCreator(node)) return false
                     if (isNodeFullScreen(node)) return true
                 }
 
@@ -757,6 +758,63 @@ class ShortsBlockerService : AccessibilityService() {
             return rect.height() > (containerHeight * 0.75) && rect.width() > (containerWidth * 0.75)
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+        return false
+    }
+
+    private fun isInsideYouTubeCreator(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        
+        try {
+            // Get the root node of the current window
+            var root = node
+            var depth = 0
+            while (root?.parent != null && depth < 20) {
+                val next = root.parent
+                if (root != node) {
+                    root.recycle()
+                }
+                root = next
+                depth++
+            }
+            
+            // Search the entire window for creation markers
+            val isCreator = hasYouTubeCreatorMarkers(root, 0, IntArray(1) { 0 })
+            if (root != node) root?.recycle()
+            
+            return isCreator
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
+    private fun hasYouTubeCreatorMarkers(node: android.view.accessibility.AccessibilityNodeInfo?, depth: Int, nodeCount: IntArray): Boolean {
+        if (node == null) return false
+        if (depth > 40 || nodeCount[0] > 1000) return false
+        nodeCount[0]++
+        
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+        
+        // Exact texts or unique identifiers for creation tools
+        if (text == "add sound" || text == "next" || text == "text" || 
+            text == "music" || text == "stickers" || text == "voiceover" || 
+            text == "swipe up to edit" ||
+            contentDesc == "add sound" || contentDesc == "voiceover" || contentDesc == "stickers" ||
+            viewId.contains("gallery") || viewId.contains("camera") || 
+            viewId.contains("editor") || viewId.contains("creation")) {
+            return true
+        }
+        
+        for (i in 0 until node.childCount) {
+            val child = try { node.getChild(i) } catch (e: Exception) { null }
+            if (child != null) {
+                val result = hasYouTubeCreatorMarkers(child, depth + 1, nodeCount)
+                try { child.recycle() } catch (e: Exception) {}
+                if (result) return true
+            }
         }
         return false
     }
