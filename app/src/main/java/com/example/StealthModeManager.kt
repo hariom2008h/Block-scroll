@@ -17,13 +17,6 @@ object StealthModeManager {
         return prefs.getBoolean(KEY_HIDE_LAUNCHER_ICON, false)
     }
 
-    /**
-     * On Android 10+ (API 29+), LauncherAppsService injects a synthetic visible launcher icon
-     * if 0 CATEGORY_LAUNCHER components are enabled. Using the transparent GhostLauncherAlias
-     * prevents Android 10+ from showing the synthetic icon while keeping the home screen slot
-     * invisible and un-openable. Users can also toggle this off to force 0 launcher aliases on
-     * custom OEM launchers that support complete slot removal.
-     */
     fun useGhostAliasOnModernAndroid(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(
@@ -32,6 +25,12 @@ object StealthModeManager {
         )
     }
 
+    /**
+     * Only called when the user explicitly toggles the Stealth Mode switch or Ghost Alias option.
+     * Never call this in Activity.onCreate(), because PackageManager.setComponentEnabledSetting()
+     * broadcasts ACTION_PACKAGE_CHANGED which causes Android's AccessibilityManagerService to
+     * unbind/reset the running AccessibilityService when MainActivity is recreated.
+     */
     fun setStealthEnabled(
         context: Context,
         hidden: Boolean,
@@ -44,15 +43,6 @@ object StealthModeManager {
             .apply()
 
         applyComponentStates(context, hidden, useGhostAlias)
-        if (context is Activity) {
-            syncRecentsExclusion(context, hidden)
-        }
-    }
-
-    fun syncStealthState(context: Context) {
-        val hidden = isStealthEnabled(context)
-        val useGhost = useGhostAliasOnModernAndroid(context)
-        applyComponentStates(context, hidden, useGhost)
         if (context is Activity) {
             syncRecentsExclusion(context, hidden)
         }
@@ -82,53 +72,54 @@ object StealthModeManager {
         val ghostAlias = ComponentName(pkg, "com.example.GhostLauncherAlias")
 
         try {
-            // Ensure SplashActivity itself stays enabled so DefaultLauncherAlias can target it when visible
-            if (pm.getComponentEnabledSetting(splashComponent) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
-                pm.setComponentEnabledSetting(
-                    splashComponent,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-            }
+            // Ensure SplashActivity stays enabled if it was previously disabled by older versions
+            setComponentStateIfChanged(
+                pm = pm,
+                componentName = splashComponent,
+                enable = true,
+                manifestDefaultEnabled = true
+            )
 
             if (!hidden) {
-                // Normal visible mode: enable DefaultLauncherAlias, disable GhostLauncherAlias
                 setComponentStateIfChanged(
-                    pm,
-                    defaultAlias,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    pm = pm,
+                    componentName = defaultAlias,
+                    enable = true,
+                    manifestDefaultEnabled = true
                 )
                 setComponentStateIfChanged(
-                    pm,
-                    ghostAlias,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    pm = pm,
+                    componentName = ghostAlias,
+                    enable = false,
+                    manifestDefaultEnabled = false
                 )
             } else {
-                // Hidden Stealth Mode: disable DefaultLauncherAlias
                 val shouldEnableGhost = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && useGhostAlias
                 if (shouldEnableGhost) {
-                    // Enable GhostLauncherAlias first so Android 10+ never sees 0 launcher activities
                     setComponentStateIfChanged(
-                        pm,
-                        ghostAlias,
-                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        pm = pm,
+                        componentName = ghostAlias,
+                        enable = true,
+                        manifestDefaultEnabled = false
                     )
                     setComponentStateIfChanged(
-                        pm,
-                        defaultAlias,
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                        pm = pm,
+                        componentName = defaultAlias,
+                        enable = false,
+                        manifestDefaultEnabled = true
                     )
                 } else {
-                    // Full disable of all launcher aliases
                     setComponentStateIfChanged(
-                        pm,
-                        ghostAlias,
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                        pm = pm,
+                        componentName = ghostAlias,
+                        enable = false,
+                        manifestDefaultEnabled = false
                     )
                     setComponentStateIfChanged(
-                        pm,
-                        defaultAlias,
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                        pm = pm,
+                        componentName = defaultAlias,
+                        enable = false,
+                        manifestDefaultEnabled = true
                     )
                 }
             }
@@ -140,10 +131,21 @@ object StealthModeManager {
     private fun setComponentStateIfChanged(
         pm: PackageManager,
         componentName: ComponentName,
-        targetState: Int
+        enable: Boolean,
+        manifestDefaultEnabled: Boolean
     ) {
-        val current = pm.getComponentEnabledSetting(componentName)
-        if (current != targetState) {
+        val currentState = pm.getComponentEnabledSetting(componentName)
+        val isCurrentlyEnabled = when (currentState) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> false
+            else -> manifestDefaultEnabled
+        }
+        if (isCurrentlyEnabled != enable) {
+            val targetState = if (enable) {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            } else {
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            }
             pm.setComponentEnabledSetting(
                 componentName,
                 targetState,

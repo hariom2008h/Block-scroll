@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
         kotlin.system.exitProcess(1)
     }
 
-    StealthModeManager.syncStealthState(this)
+    StealthModeManager.syncRecentsExclusion(this)
     enableEdgeToEdge()
     setContent {
       if (crashLog != null) {

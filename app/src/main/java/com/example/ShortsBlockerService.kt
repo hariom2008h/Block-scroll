@@ -302,11 +302,19 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        ReminderReceiver.cancelReminder(this)
         try {
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        } catch (t: Throwable) {
+            t.printStackTrace()
+        }
+
+        try {
+            ReminderReceiver.cancelReminder(this)
             val notificationManagerCompat = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManagerCompat.cancel(4041)
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     "shorts_blocker_channel",
@@ -335,14 +343,16 @@ class ShortsBlockerService : AccessibilityService() {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (t: Throwable) {
+            // Do not let ForegroundServiceStartNotAllowedException or SecurityException kill the AccessibilityService
+            t.printStackTrace()
         }
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        
-        startPeriodicCheck()
+
+        try {
+            startPeriodicCheck()
+        } catch (t: Throwable) {
+            t.printStackTrace()
+        }
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
@@ -451,9 +461,10 @@ class ShortsBlockerService : AccessibilityService() {
             if (paymentApps.contains(packageName)) {
                 val pauseForPayments = sharedPreferences?.getBoolean("pause_for_payments", true) ?: true
                 if (pauseForPayments) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        disableSelf()
+                    if (isOverlayShowing) {
+                        mainHandler.post { removeFrictionOverlay() }
                     }
+                    removeProgressOverlay()
                     return
                 }
             }
