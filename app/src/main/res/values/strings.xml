@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Shorts Blocker</string>
     <string name="accessibility_service_description">Locks YouTube Shorts and Instagram Reels with a friction password to break impulsive scrolling loops.</string>
+    <string name="ghost_app_name">&#8203;</string>
 </resources>

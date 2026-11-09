@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan to fix the Hide App Icon (Stealth Mode) feature across all Android versions (including Android 10–15) using activity-alias switching, a transparent/blank unclickable Ghost Stealth alias to bypass Android 10+ synthetic launcher icons, Recent Apps exclusion, and direct access via Accessibility Settings.",
+  "updatedAt":  "2026-11-09T10:24:50.658236334Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

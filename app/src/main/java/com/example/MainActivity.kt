@@ -58,6 +58,11 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
+  override fun onResume() {
+    super.onResume()
+    StealthModeManager.syncRecentsExclusion(this)
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     installSplashScreen()
     super.onCreate(savedInstanceState)
@@ -72,6 +77,7 @@ class MainActivity : ComponentActivity() {
         kotlin.system.exitProcess(1)
     }
 
+    StealthModeManager.syncStealthState(this)
     enableEdgeToEdge()
     setContent {
       if (crashLog != null) {
@@ -936,7 +942,10 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
         mutableStateOf(sharedPrefs.getBoolean("block_snapchat", true))
     }
     var hideLauncherIcon by remember {
-        mutableStateOf(sharedPrefs.getBoolean("hide_launcher_icon", false))
+        mutableStateOf(StealthModeManager.isStealthEnabled(context))
+    }
+    var useGhostAlias by remember {
+        mutableStateOf(StealthModeManager.useGhostAliasOnModernAndroid(context))
     }
 
     var showDeveloperSettings by remember {
@@ -1137,40 +1146,154 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                         ),
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        Column(
                             modifier = Modifier.fillMaxWidth().padding(20.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Hide App Icon",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Removes app from home screen. Access via Accessibility Settings in phone.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Hide App Icon",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Hides app from Home Screen, App Drawer & Recent Apps. Reopen only via Accessibility Settings.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Switch(
+                                    checked = hideLauncherIcon,
+                                    onCheckedChange = { isHidden ->
+                                        hideLauncherIcon = isHidden
+                                        StealthModeManager.setStealthEnabled(
+                                            context = context,
+                                            hidden = isHidden,
+                                            useGhostAlias = useGhostAlias
+                                        )
+                                        Toast.makeText(
+                                            context,
+                                            if (isHidden) "Stealth Mode ON: Open via Accessibility Settings" else "App icon restored to launcher",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Switch(
-                                checked = hideLauncherIcon,
-                                onCheckedChange = { isHidden ->
-                                    hideLauncherIcon = isHidden
-                                    sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
-                                    
-                                    val componentName = ComponentName(context, "com.example.SplashActivity")
-                                    context.packageManager.setComponentEnabledSetting(
-                                        componentName,
-                                        if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                                        PackageManager.DONT_KILL_APP
-                                    )
-                                    Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
+
+                            androidx.compose.animation.AnimatedVisibility(visible = hideLauncherIcon) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        val newValue = !useGhostAlias
+                                                        useGhostAlias = newValue
+                                                        StealthModeManager.setStealthEnabled(
+                                                            context = context,
+                                                            hidden = hideLauncherIcon,
+                                                            useGhostAlias = newValue
+                                                        )
+                                                    }
+                                                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                                            ) {
+                                                Checkbox(
+                                                    checked = useGhostAlias,
+                                                    onCheckedChange = { newValue ->
+                                                        useGhostAlias = newValue
+                                                        StealthModeManager.setStealthEnabled(
+                                                            context = context,
+                                                            hidden = hideLauncherIcon,
+                                                            useGhostAlias = newValue
+                                                        )
+                                                    }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Android 10+ Transparent Ghost Shield",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = "Uses an invisible, unclickable blank slot to stop Android 10–15 from forcing the visible app icon back onto the launcher.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                    }
+
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Info,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "How to open app while hidden",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = "Go to Phone Settings → Accessibility → Downloaded Apps → Shorts Blocker → tap Settings (⚙️) to open this screen.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                                            )
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    try {
+                                                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "Unable to open Accessibility Settings", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(50),
+                                                colors = ButtonDefaults.filledTonalButtonColors(
+                                                    containerColor = MaterialTheme.colorScheme.surface,
+                                                    contentColor = MaterialTheme.colorScheme.primary
+                                                )
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Settings,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Verify in Accessibility Settings", fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
                                 }
-                            )
+                            }
                         }
                     }
                 }
