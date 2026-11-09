@@ -12,10 +12,14 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -92,10 +96,11 @@ fun ShortsBlockerSystemSettingsScreen(
 
     var pauseForPayments by remember { mutableStateOf(sharedPrefs.getBoolean("pause_for_payments", true)) }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 640.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
         CenterAlignedTopAppBar(
@@ -118,7 +123,7 @@ fun ShortsBlockerSystemSettingsScreen(
                 }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.background,
                 titleContentColor = MaterialTheme.colorScheme.primary,
             )
         )
@@ -126,15 +131,16 @@ fun ShortsBlockerSystemSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -369,113 +375,153 @@ fun ShortsBlockerSystemSettingsScreen(
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("System Access", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-
-            SettingsListItem(
-                icon = Icons.Rounded.Shield,
-                title = "Manage Permissions",
-                onClick = onNavigateToPermissions
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Pause for Payment Apps", style = MaterialTheme.typography.bodyLarge)
+                Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
                     Text(
-                        text = "Automatically pause accessibility service when a payment app is opened",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "System Access",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                }
-                Switch(
-                    checked = pauseForPayments,
-                    onCheckedChange = {
-                        pauseForPayments = it
-                        sharedPrefs.edit().putBoolean("pause_for_payments", it).apply()
-                    }
-                )
-            }
+                    Spacer(modifier = Modifier.height(8.dp))
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+                    SettingsListItem(
+                        icon = Icons.Rounded.Shield,
+                        title = "Manage Permissions",
+                        onClick = onNavigateToPermissions
+                    )
 
-            Text("Appearance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
 
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Dynamic Color", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = "Use Android 12+ wallpaper-based colors",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text("Pause for Payment Apps", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Automatically pause accessibility service when a payment app is opened",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = pauseForPayments,
+                            onCheckedChange = {
+                                pauseForPayments = it
+                                sharedPrefs.edit().putBoolean("pause_for_payments", it).apply()
+                            }
                         )
                     }
-                    Switch(
-                        checked = useDynamicColor,
-                        onCheckedChange = { onDynamicColorChange(it) }
-                    )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
             }
-            
-            Text("Theme Mode", style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(8.dp))
 
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier.fillMaxWidth()
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
             ) {
-                val options = listOf("Auto", "Light", "Dark")
-                options.forEachIndexed { index, label ->
-                    SegmentedButton(
-                        selected = themeMode == index,
-                        onClick = { onThemeModeChange(index) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(
+                        "Appearance & Material You",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text("Dynamic Colors (Material You)", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = "Automatically adapts the app's color palette to match your phone's wallpaper and Material You system theme.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = useDynamicColor,
+                                onCheckedChange = { onDynamicColorChange(it) }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    Text("Theme Mode", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(label)
+                        val options = listOf("Auto", "Light", "Dark")
+                        options.forEachIndexed { index, label ->
+                            SegmentedButton(
+                                selected = themeMode == index,
+                                onClick = { onThemeModeChange(index) },
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                            ) {
+                                Text(label, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                 }
             }
 
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(
+                        "Help & Policy",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
 
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("Help and policy", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                SettingsListItem(
-                    icon = Icons.AutoMirrored.Rounded.HelpOutline,
-                    title = "Help & FAQs",
-                    onClick = onNavigateToHelp
-                )
-                SettingsListItem(
-                    icon = Icons.Rounded.Description,
-                    title = "Terms of Service & Privacy Policy",
-                    onClick = onNavigateToPrivacyPolicy
-                )
-                SettingsListItem(
-                    icon = Icons.Rounded.ChatBubbleOutline,
-                    title = "Send feedback",
-                    onClick = { showFeedbackDialog = true }
-                )
-                SettingsListItem(
-                    icon = Icons.Rounded.Info,
-                    title = "About",
-                    onClick = onNavigateToAbout
-                )
+                    SettingsListItem(
+                        icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                        title = "Help & FAQs",
+                        onClick = onNavigateToHelp
+                    )
+                    SettingsListItem(
+                        icon = Icons.Rounded.Description,
+                        title = "Terms of Service & Privacy Policy",
+                        onClick = onNavigateToPrivacyPolicy
+                    )
+                    SettingsListItem(
+                        icon = Icons.Rounded.ChatBubbleOutline,
+                        title = "Send feedback",
+                        onClick = { showFeedbackDialog = true }
+                    )
+                    SettingsListItem(
+                        icon = Icons.Rounded.Info,
+                        title = "About",
+                        onClick = onNavigateToAbout
+                    )
+                }
             }
 
             if (showFeedbackDialog) {
@@ -652,189 +698,234 @@ fun PermissionsScreen(onNavigateBack: () -> Unit) {
         }
     }
 
+    androidx.activity.compose.BackHandler { onNavigateBack() }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Manage Permissions") },
+                title = { Text("Manage Permissions", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(innerPadding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val overlayColor by animateColorAsState(if (isOverlayGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                val overlayIcon = if (isOverlayGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = overlayIcon,
-                    contentDescription = null,
-                    tint = overlayColor,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Overlay Permission",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (isOverlayGranted) "Active" else "Required",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                TextButton(
-                    onClick = {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        context.startActivity(intent)
-                    },
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
                 ) {
-                    Text(if (isOverlayGranted) "Manage" else "Grant")
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = overlayIcon,
+                            contentDescription = null,
+                            tint = overlayColor,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Overlay Permission",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isOverlayGranted) "Active" else "Required to show block prompt",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = if (isOverlayGranted) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.buttonColors()
+                        ) {
+                            Text(if (isOverlayGranted) "Manage" else "Grant", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
-            }
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-            
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+
                 val accColor by animateColorAsState(if (isAccessibilityGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                 val accIcon = if (isAccessibilityGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Settings
-                
-                Icon(
-                    imageVector = accIcon,
-                    contentDescription = null,
-                    tint = accColor,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Accessibility",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (isAccessibilityGranted) "Active" else "To intercept scrolls",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                TextButton(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        context.startActivity(intent)
-                    },
-                ) {
-                    Text(if (isAccessibilityGranted) "Manage" else "Enable")
-                }
-            }
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.surfaceVariant)
 
-            val requiresAutoStart = remember { needsAutoStart() }
-            
-            if (requiresAutoStart) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Auto Start",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Required for background block",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            openAutoStartSettings(context)
-                        },
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Manage")
+                        Icon(
+                            imageVector = accIcon,
+                            contentDescription = null,
+                            tint = accColor,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Accessibility Service",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isAccessibilityGranted) "Active" else "Required to intercept scrolls",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                context.startActivity(intent)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = if (isAccessibilityGranted) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.buttonColors()
+                        ) {
+                            Text(if (isAccessibilityGranted) "Manage" else "Enable", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+
+                val requiresAutoStart = remember { needsAutoStart() }
+                
+                if (requiresAutoStart) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Settings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Auto Start",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Required for background block",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    openAutoStartSettings(context)
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Manage", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                } else {
                     val batteryColor by animateColorAsState(if (isBatteryOptimizationDisabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                     val batteryIcon = if (isBatteryOptimizationDisabled) Icons.Rounded.CheckCircle else Icons.Rounded.Warning
-                    
-                    Icon(
-                        imageVector = batteryIcon,
-                        contentDescription = null,
-                        tint = batteryColor,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Battery Optimization",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (isBatteryOptimizationDisabled) "Active" else "Recommended for background block",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            try {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                try {
-                                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    context.startActivity(intent)
-                                } catch (e2: Exception) {
-                                }
-                            }
-                        },
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
                     ) {
-                        Text(if (isBatteryOptimizationDisabled) "Manage" else "Fix")
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = batteryIcon,
+                                contentDescription = null,
+                                tint = batteryColor,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Battery Optimization",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isBatteryOptimizationDisabled) "Unrestricted" else "Recommended for background block",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        try {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        } catch (e2: Exception) {
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = if (isBatteryOptimizationDisabled) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.buttonColors()
+                            ) {
+                                Text(if (isBatteryOptimizationDisabled) "Manage" else "Fix", fontWeight = FontWeight.SemiBold)
+                            }
                     }
                 }
             }
         }
     }
+}
 }
 
 @Composable
@@ -1072,37 +1163,69 @@ fun openAutoStartSettings(context: Context) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
+    androidx.activity.compose.BackHandler { onNavigateBack() }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Terms of Service & Privacy Policy") },
+                title = { Text("Terms & Privacy Policy", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            Text(
-                text = "This application respects your privacy and operates locally on your device. It requires Accessibility Services solely for the purpose of detecting and intercepting infinite scrolling features on short-form video platforms. We do not collect, store, or transmit your personal data, scroll history, or any contents of your screen.\n\nBy using this application, you agree to these terms and understand that the app enforces focus by blocking specific UI elements on supported platforms.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onNavigateBack,
-                modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
             ) {
-                Text("OK")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "Privacy-First Architecture",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Shorts Blocker operates entirely on your device. It utilizes Android Accessibility Services solely to detect and intercept short-form video algorithms (YouTube Shorts, Instagram Reels, and Snapchat Spotlight).\n\n• Zero Data Tracking: We do not collect, monitor, store, or transmit your search history, personal messages, or screen contents.\n• Local Logic: All blocking heuristics and cooldown timers are calculated completely offline.\n• Minimal Permissions: Permissions granted to this app are used strictly to provide the mindful friction overlay.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 22.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onNavigateBack,
+                    modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().align(Alignment.CenterHorizontally),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("I Understand", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -1111,38 +1234,55 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HelpFAQScreen(onNavigateBack: () -> Unit) {
+    androidx.activity.compose.BackHandler { onNavigateBack() }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Help & FAQs") },
+                title = { Text("Help & FAQs", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { innerPadding ->
-        androidx.compose.foundation.lazy.LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            item {
-                FAQItem("How does this app block Shorts?", "The app uses Android's Accessibility Services to detect when you open a short-form video feed (like YouTube Shorts or Instagram Reels) and displays a blocking overlay.")
-            }
-            item {
-                FAQItem("Why do I need to enable Accessibility?", "We need Accessibility permissions to detect which screen of an app you are on without accessing your personal data. This is strictly locally processed.")
-            }
-            item {
-                FAQItem("What does 'Auto Start / Battery' permission do?", "Many device manufacturers kill background apps to save battery. Giving Auto Start and Battery unrestricted access ensures the blocker service stays running in the background so it can block seamlessly when needed.")
-            }
-            item {
-                FAQItem("How can I pause the blocker?", "You can change your session settings and duration in the app's home screen. The app does not completely limit usage but enforces a mindful cooldown time.")
-            }
-            item {
-                FAQItem("Will my data be sent to a server?", "No, all processing happens locally on your device. We respect your privacy and do not transmit your screen content or activity.")
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    FAQItem("How does Shorts Blocker work?", "When you swipe into YouTube Shorts, Instagram Reels, or Snapchat Spotlight, the blocker detects the screen and displays an intentional friction prompt requesting your master password.")
+                }
+                item {
+                    FAQItem("Why is Accessibility Service required?", "Android Accessibility enables the app to know which screen you are viewing without needing invasive system permissions or internet access. It is processed 100% locally on your phone.")
+                }
+                item {
+                    FAQItem("Why is Auto-Start / Battery Unrestricted required?", "OEM Android operating systems (like MIUI/HyperOS, ColorOS, One UI) frequently stop background services to conserve power. Granting unrestricted battery access ensures the blocker remains active after locks and reboots.")
+                }
+                item {
+                    FAQItem("What is Daily Relief Time?", "You can configure a daily allowance of mindful short-form viewing. Once this allowance is exhausted, strict friction is enforced.")
+                }
+                item {
+                    FAQItem("Does the app send any of my data online?", "No. The app does not transmit any screen content or personal activity. It works completely on-device without cloud telemetry.")
+                }
             }
         }
     }
@@ -1153,8 +1293,8 @@ fun FAQItem(question: String, answer: String) {
     var expanded by remember { mutableStateOf(false) }
     Card(
         onClick = { expanded = !expanded },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(
@@ -1165,23 +1305,26 @@ fun FAQItem(question: String, answer: String) {
                 Text(
                     text = question,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = "Expand",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = "Expand",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             if (expanded) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = answer,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 20.sp
                 )
             }
         }
@@ -1196,7 +1339,6 @@ fun HtmlText(html: String, modifier: Modifier = Modifier) {
         factory = { context ->
             android.widget.TextView(context).apply {
                 movementMethod = android.text.method.LinkMovementMethod.getInstance()
-                // Use Material 3 onSurfaceVariant text color
                 setTextColor(color.toArgb())
             }
         },
@@ -1210,53 +1352,90 @@ fun HtmlText(html: String, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(currentVersion: String, onNavigateBack: () -> Unit) {
+    androidx.activity.compose.BackHandler { onNavigateBack() }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("About Shorts Blocker") },
+                title = { Text("About", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Shield,
-                contentDescription = null,
-                modifier = Modifier.size(100.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "Shorts Blocker",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Version: v$currentVersion",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            Text(
-                text = "Shorts Blocker helps you reclaim your time and focus by preventing doomscrolling on addictive social media platforms.",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Shield,
+                        contentDescription = null,
+                        modifier = Modifier.size(54.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = "Shorts Blocker",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "Version v$currentVersion",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                ) {
+                    Text(
+                        text = "Shorts Blocker helps you reclaim your time, attention span, and mental peace by applying friction to infinite short-video doomscrolling on social media.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(20.dp),
+                        lineHeight = 24.sp
+                    )
+                }
+            }
         }
     }
 }

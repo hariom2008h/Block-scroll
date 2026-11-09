@@ -19,10 +19,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
@@ -85,7 +88,7 @@ class MainActivity : ComponentActivity() {
       }
       
       var themeMode by remember { mutableIntStateOf(sharedPrefs.getInt("theme_mode", 0)) } // 0: Auto, 1: Light, 2: Dark
-      var useDynamicColor by remember { mutableStateOf(sharedPrefs.getBoolean("dynamic_color", true)) }
+      var useDynamicColor by remember { mutableStateOf(sharedPrefs.getBoolean("material_you_dynamic", true)) }
 
       val isDark = when (themeMode) {
           1 -> false
@@ -269,6 +272,7 @@ class MainActivity : ComponentActivity() {
               )
             }
             "settings" -> {
+              androidx.activity.compose.BackHandler { currentScreen = "home" }
               ShortsBlockerSettingsScreen(
                   modifier = screenModifier,
                   onNavigateBack = { currentScreen = "home" },
@@ -276,6 +280,7 @@ class MainActivity : ComponentActivity() {
               )
             }
             "system_settings" -> {
+              androidx.activity.compose.BackHandler { currentScreen = "settings" }
               ShortsBlockerSystemSettingsScreen(
                   modifier = screenModifier,
                   themeMode = themeMode,
@@ -286,7 +291,10 @@ class MainActivity : ComponentActivity() {
                   useDynamicColor = useDynamicColor,
                   onDynamicColorChange = {
                       useDynamicColor = it
-                      sharedPrefs.edit().putBoolean("dynamic_color", it).apply()
+                      sharedPrefs.edit()
+                          .putBoolean("material_you_dynamic", it)
+                          .putBoolean("dynamic_color", it)
+                          .apply()
                   },
                   onNavigateBack = { currentScreen = "settings" },
                   onNavigateToPermissions = { currentScreen = "permissions" },
@@ -296,16 +304,20 @@ class MainActivity : ComponentActivity() {
               )
             }
             "permissions" -> {
+                androidx.activity.compose.BackHandler { currentScreen = "system_settings" }
                 PermissionsScreen(onNavigateBack = { currentScreen = "system_settings" })
             }
             "privacy_policy" -> {
+                androidx.activity.compose.BackHandler { currentScreen = "system_settings" }
                 PrivacyPolicyScreen(onNavigateBack = { currentScreen = "system_settings" })
             }
             "about" -> {
+                androidx.activity.compose.BackHandler { currentScreen = "system_settings" }
                 val currentVersion = remember { UpdateChecker.getCurrentVersion(this@MainActivity) }
                 AboutScreen(currentVersion = currentVersion, onNavigateBack = { currentScreen = "system_settings" })
             }
             "help" -> {
+                androidx.activity.compose.BackHandler { currentScreen = "system_settings" }
                 HelpFAQScreen(onNavigateBack = { currentScreen = "system_settings" })
             }
           }
@@ -342,66 +354,99 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var bypassCount by remember { mutableIntStateOf(sharedPrefs.getInt("bypass_count", 0)) }
     var isPasswordSectionExpanded by remember { mutableStateOf(false) }
+    var showDailyReliefSheet by remember { mutableStateOf(false) }
     
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 bypassCount = sharedPrefs.getInt("bypass_count", 0)
+                allowanceMins = sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    if (showDailyReliefSheet) {
+        DailyReliefBottomSheet(
+            onDismiss = {
+                showDailyReliefSheet = false
+                allowanceMins = sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.surface
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 32.dp)
-        ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 16.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.width(48.dp)) // To balance the settings icon
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
                     Text(
                         text = "Shorts Blocker",
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-            
-            item {
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
+                },
+                actions = {
+                    FilledTonalIconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.padding(end = 8.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = "Settings"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Hero Card: Material You Secondary Container
+                item {
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(80.dp)
                                     .background(
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                        shape = androidx.compose.foundation.shape.CircleShape
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                        shape = CircleShape
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -409,319 +454,437 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     imageVector = Icons.Rounded.Shield,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(42.dp)
                                 )
                             }
+
                             Spacer(modifier = Modifier.height(16.dp))
+
                             Text(
                                 text = "Active Protection",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Friction is enabled for selected apps",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center
                             )
+
                             Spacer(modifier = Modifier.height(24.dp))
+
+                            // Material You Inner Surface Stats Card
                             Surface(
                                 color = MaterialTheme.colorScheme.surface,
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(20.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(16.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp, horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
+                                    // Stat 1: Times Bypassed
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.LockOpen,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.LockOpen,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = bypassCount.toString(),
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = bypassCount.toString(),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            text = "Times Bypassed",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Box(
+                                        modifier = Modifier
+                                            .width(1.dp)
+                                            .height(36.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    )
+
+                                    // Stat 2: Daily Relief Limit (Interactive)
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { showDailyReliefSheet = true }
+                                            .padding(vertical = 2.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Timer,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "${allowanceMins.roundToInt()}m",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Daily Allowance",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Security Section
+                item {
+                    Text(
+                        text = "Security",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    )
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { isPasswordSectionExpanded = !isPasswordSectionExpanded }
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lock,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Times Bypassed",
+                                        text = "Master Password",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Required when an addictive scroll is intercepted.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Text(
-                    text = "Security",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
-                )
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable { isPasswordSectionExpanded = !isPasswordSectionExpanded }
-                        ) {
-                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Master Password",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Required when an addictive scroll is intercepted.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(onClick = { isPasswordSectionExpanded = !isPasswordSectionExpanded }) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-
-                        androidx.compose.animation.AnimatedVisibility(visible = isPasswordSectionExpanded) {
-                            Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                                OutlinedTextField(
-                                    value = password,
-                                    onValueChange = { password = it },
-                                    label = { Text("Password") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        focusedLabelColor = MaterialTheme.colorScheme.primary
+                                FilledTonalIconButton(
+                                    onClick = { isPasswordSectionExpanded = !isPasswordSectionExpanded },
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.primary
                                     )
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                val hasMinLength = password.length >= 6
-                                val hasUpper = password.any { it.isUpperCase() }
-                                val hasLower = password.any { it.isLowerCase() }
-                                val hasDigit = password.any { it.isDigit() }
-                                val hasSpecial = password.any { !it.isLetterOrDigit() }
-                                val hasNoRepeats = password.isNotEmpty() && password.toSet().size == password.length
-                                val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
-
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    PasswordCriterion(text = "At least 6 characters", met = hasMinLength)
-                                    PasswordCriterion(text = "Contains uppercase letter", met = hasUpper)
-                                    PasswordCriterion(text = "Contains lowercase letter", met = hasLower)
-                                    PasswordCriterion(text = "Contains a number", met = hasDigit)
-                                    PasswordCriterion(text = "Contains a special symbol", met = hasSpecial)
-                                    PasswordCriterion(text = "No repeated characters", met = hasNoRepeats)
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Button(
-                                    onClick = {
-                                        sharedPrefs.edit().putString("master_password", password).apply()
-                                        Toast.makeText(context, "Password Saved securely", Toast.LENGTH_SHORT).show()
-                                        isPasswordSectionExpanded = false
-                                    },
-                                    enabled = isValidPassword,
-                                    modifier = Modifier.align(Alignment.End),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
-                                    Text("Save Credentials")
+                                    Icon(
+                                        imageVector = if (isPasswordSectionExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.Edit,
+                                        contentDescription = "Edit"
+                                    )
+                                }
+                            }
+
+                            androidx.compose.animation.AnimatedVisibility(visible = isPasswordSectionExpanded) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                                    OutlinedTextField(
+                                        value = password,
+                                        onValueChange = { password = it },
+                                        label = { Text("Password") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            focusedLabelColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    
+                                    val hasMinLength = password.length >= 6
+                                    val hasUpper = password.any { it.isUpperCase() }
+                                    val hasLower = password.any { it.isLowerCase() }
+                                    val hasDigit = password.any { it.isDigit() }
+                                    val hasSpecial = password.any { !it.isLetterOrDigit() }
+                                    val hasNoRepeats = password.isNotEmpty() && password.toSet().size == password.length
+                                    val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        PasswordCriterion(text = "At least 6 characters", met = hasMinLength)
+                                        PasswordCriterion(text = "Contains uppercase letter", met = hasUpper)
+                                        PasswordCriterion(text = "Contains lowercase letter", met = hasLower)
+                                        PasswordCriterion(text = "Contains a number", met = hasDigit)
+                                        PasswordCriterion(text = "Contains a special symbol", met = hasSpecial)
+                                        PasswordCriterion(text = "No repeated characters", met = hasNoRepeats)
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(
+                                        onClick = {
+                                            sharedPrefs.edit().putString("master_password", password).apply()
+                                            Toast.makeText(context, "Password Saved securely", Toast.LENGTH_SHORT).show()
+                                            isPasswordSectionExpanded = false
+                                        },
+                                        enabled = isValidPassword,
+                                        modifier = Modifier.align(Alignment.End),
+                                        shape = RoundedCornerShape(50),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Text("Save Credentials", fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                Text(
-                    text = "Daily Allowance",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
-                )
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Daily Relief Time",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = "${allowanceMins.roundToInt()} min",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = "Daily limit for selected addictive apps.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-                        Slider(
-                            value = allowanceMins,
-                            onValueChange = { 
-                                allowanceMins = it
-                                sharedPrefs.edit().putInt("daily_relief_minutes", it.roundToInt()).apply() 
-                            },
-                            valueRange = 0f..30f,
-                            steps = 29,
-                            thumb = {
-                                Box(
-                                    modifier = Modifier
-                                        .width(4.dp)
-                                        .height(28.dp)
-                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-                                )
-                            },
-                            track = { sliderState ->
-                                SliderDefaults.Track(
-                                    colors = SliderDefaults.colors(
-                                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                        activeTickColor = Color.Transparent,
-                                        inactiveTickColor = Color.Transparent
-                                    ),
-                                    sliderState = sliderState,
-                                    modifier = Modifier.height(16.dp)
-                                )
+                // Daily Allowance Section
+                item {
+                    Text(
+                        text = "Daily Allowance",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    )
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Daily Relief Time",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Daily limit for selected addictive apps.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Surface(
+                                    onClick = { showDailyReliefSheet = true },
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(50)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Timer,
+                                            contentDescription = "Open Dial",
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "${allowanceMins.roundToInt()} min",
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Target Apps",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AppSelectionChip(label = "YouTube", isSelected = allowYt, onToggle = {
-                                allowYt = it
-                                sharedPrefs.edit().putBoolean("allowance_youtube", it).apply()
-                            }, modifier = Modifier.weight(1f))
-                            AppSelectionChip(label = "Instagram", isSelected = allowIg, onToggle = {
-                                allowIg = it
-                                sharedPrefs.edit().putBoolean("allowance_instagram", it).apply()
-                            }, modifier = Modifier.weight(1f))
-                            AppSelectionChip(label = "Snapchat", isSelected = allowSnap, onToggle = {
-                                allowSnap = it
-                                sharedPrefs.edit().putBoolean("allowance_snapchat", it).apply()
-                            }, modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.height(18.dp))
+                            @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                            Slider(
+                                value = allowanceMins.coerceIn(0f, 30f),
+                                onValueChange = { 
+                                    allowanceMins = it
+                                    sharedPrefs.edit().putInt("daily_relief_minutes", it.roundToInt()).apply() 
+                                },
+                                valueRange = 0f..30f,
+                                steps = 29,
+                                thumb = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(28.dp)
+                                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                                    )
+                                },
+                                track = { sliderState ->
+                                    SliderDefaults.Track(
+                                        colors = SliderDefaults.colors(
+                                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                                            inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                            activeTickColor = Color.Transparent,
+                                            inactiveTickColor = Color.Transparent
+                                        ),
+                                        sliderState = sliderState,
+                                        modifier = Modifier.height(16.dp)
+                                    )
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Target Apps",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AppSelectionChip(label = "YouTube", isSelected = allowYt, onToggle = {
+                                    allowYt = it
+                                    sharedPrefs.edit().putBoolean("allowance_youtube", it).apply()
+                                }, modifier = Modifier.weight(1f))
+                                AppSelectionChip(label = "Instagram", isSelected = allowIg, onToggle = {
+                                    allowIg = it
+                                    sharedPrefs.edit().putBoolean("allowance_instagram", it).apply()
+                                }, modifier = Modifier.weight(1f))
+                                AppSelectionChip(label = "Snapchat", isSelected = allowSnap, onToggle = {
+                                    allowSnap = it
+                                    sharedPrefs.edit().putBoolean("allowance_snapchat", it).apply()
+                                }, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+
+                // Session Cooldown Section
+                item {
+                    Text(
+                        text = "Session Cooldown",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    )
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Post-Unlock Grace Period",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "How long until you are asked for standard password again.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(50)
+                                ) {
+                                    Text(
+                                        text = "${cooldownOptions[cooldownIndex.roundToInt()]} min",
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(18.dp))
+                            @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                            Slider(
+                                value = cooldownIndex,
+                                onValueChange = { cooldownIndex = it },
+                                onValueChangeFinished = { 
+                                    sharedPrefs.edit().putInt("session_duration_minutes", cooldownOptions[cooldownIndex.roundToInt()]).apply() 
+                                },
+                                valueRange = 0f..4f,
+                                steps = 3,
+                                thumb = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(28.dp)
+                                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                                    )
+                                },
+                                track = { sliderState ->
+                                    SliderDefaults.Track(
+                                        colors = SliderDefaults.colors(
+                                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                                            inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                            activeTickColor = MaterialTheme.colorScheme.onPrimary,
+                                            inactiveTickColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                        ),
+                                        sliderState = sliderState,
+                                        modifier = Modifier.height(16.dp)
+                                    )
+                                }
+                            )
                         }
                     }
                 }
             }
-
-            item {
-                Text(
-                    text = "Session Cooldown",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 32.dp, bottom = 12.dp)
-                )
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Post-Unlock Grace Period",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = "${cooldownOptions[cooldownIndex.roundToInt()]} min",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = "How long until you are asked for standard password again.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-                        Slider(
-                            value = cooldownIndex,
-                            onValueChange = { cooldownIndex = it },
-                            onValueChangeFinished = { 
-                                sharedPrefs.edit().putInt("session_duration_minutes", cooldownOptions[cooldownIndex.roundToInt()]).apply() 
-                            },
-                            valueRange = 0f..4f,
-                            steps = 3,
-                            thumb = {
-                                Box(
-                                    modifier = Modifier
-                                        .width(4.dp)
-                                        .height(28.dp)
-                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-                                )
-                            },
-                            track = { sliderState ->
-                                SliderDefaults.Track(
-                                    colors = SliderDefaults.colors(
-                                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                        activeTickColor = MaterialTheme.colorScheme.onPrimary,
-                                        inactiveTickColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                    ),
-                                    sliderState = sliderState,
-                                    modifier = Modifier.height(16.dp)
-                                )
-                            }
-                        )
-                    }
-                }
-            }
-            
         }
     }
 }
@@ -729,15 +892,22 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
 @Composable
 fun AppSelectionChip(label: String, isSelected: Boolean, onToggle: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     Surface(
-        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier.clickable { onToggle(!isSelected) }
+        shape = RoundedCornerShape(14.dp),
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onToggle(!isSelected) }
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 10.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+        ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -777,224 +947,322 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
         mutableStateOf(sharedPrefs.getBoolean("enable_floating_timer", false))
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        CenterAlignedTopAppBar(
-            title = {
-                Text(
-                    text = "Settings",
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    softWrap = false,
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        settingsClickCount++
-                        if (settingsClickCount >= 7) {
-                            showDeveloperSettings = true
-                            sharedPrefs.edit().putBoolean("show_developer_settings", true).apply()
-                            Toast.makeText(context, "Developer Settings Unlocked", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = onNavigateBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                titleContentColor = MaterialTheme.colorScheme.primary,
-            )
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-        ) {
-            ElevatedCard(
-                onClick = onNavigateToSystemSettings,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "System Settings",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Overlay, Accessibility, Updates & About",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Text("Target Apps Configuration", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AppFilterItem(
-                appName = "YouTube Shorts",
-                isBlocked = blockYoutube,
-                onBlockChange = { 
-                    blockYoutube = it 
-                    sharedPrefs.edit().putBoolean("block_youtube", it).apply()
-                },
-                isStrict = strictModeYoutube,
-                onStrictChange = { 
-                    strictModeYoutube = it 
-                    sharedPrefs.edit().putBoolean("strict_mode_youtube", it).apply()
-                }
-            )
-
-            AppFilterItem(
-                appName = "Instagram Reels",
-                isBlocked = blockInstagram,
-                onBlockChange = { 
-                    blockInstagram = it 
-                    sharedPrefs.edit().putBoolean("block_instagram", it).apply()
-                },
-                isStrict = strictModeInstagram,
-                onStrictChange = { 
-                    strictModeInstagram = it 
-                    sharedPrefs.edit().putBoolean("strict_mode_instagram", it).apply()
-                }
-            )
-
-            AppFilterItem(
-                appName = "Snapchat Spotlight",
-                isBlocked = blockSnapchat,
-                onBlockChange = { 
-                    blockSnapchat = it 
-                    sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
-                },
-                isStrict = strictModeSnapchat,
-                onStrictChange = { 
-                    strictModeSnapchat = it 
-                    sharedPrefs.edit().putBoolean("strict_mode_snapchat", it).apply()
-                }
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text("Stealth Mode", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Hide App Icon", style = MaterialTheme.typography.bodyLarge)
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
                     Text(
-                        text = "Removes app from home screen. Access via Accessibility Settings in phone.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = hideLauncherIcon,
-                    onCheckedChange = { isHidden ->
-                        hideLauncherIcon = isHidden
-                        sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
-                        
-                        val componentName = ComponentName(context, "com.example.SplashActivity")
-                        context.packageManager.setComponentEnabledSetting(
-                            componentName,
-                            if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                            PackageManager.DONT_KILL_APP
-                        )
-                        Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-
-            if (showDeveloperSettings) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-
-                Text("Developer Settings", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, softWrap = false)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Show Floating Timer", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = "Display on-screen cooldown timer overlay when watching shorts.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = enableFloatingTimer,
-                        onCheckedChange = { isEnabled ->
-                            enableFloatingTimer = isEnabled
-                            sharedPrefs.edit().putBoolean("enable_floating_timer", isEnabled).apply()
-                        }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val miuiIntent = android.content.Intent().apply {
-                                setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
-                                putExtra("package_name", context.packageName)
-                                putExtra("package_label", "Shorts Blocker")
+                        text = "Settings",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            settingsClickCount++
+                            if (settingsClickCount >= 7) {
+                                showDeveloperSettings = true
+                                sharedPrefs.edit().putBoolean("show_developer_settings", true).apply()
+                                Toast.makeText(context, "Developer Settings Unlocked", Toast.LENGTH_SHORT).show()
                             }
-                            context.startActivity(miuiIntent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Not a Xiaomi device or settings not found.", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // System Settings Navigation Card (Material You Tonal Banner)
+                ElevatedCard(
+                    onClick = onNavigateToSystemSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
                 ) {
-                    Text("Force Open MIUI Battery Saver")
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "System Settings",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = "Material You, Overlay, Permissions, Updates & About",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+
+                // Target Apps Configuration
+                Column {
+                    Text(
+                        text = "Target Apps Configuration",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    )
+
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        ),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            AppFilterItem(
+                                appName = "YouTube Shorts",
+                                isBlocked = blockYoutube,
+                                onBlockChange = { 
+                                    blockYoutube = it 
+                                    sharedPrefs.edit().putBoolean("block_youtube", it).apply()
+                                },
+                                isStrict = strictModeYoutube,
+                                onStrictChange = { 
+                                    strictModeYoutube = it 
+                                    sharedPrefs.edit().putBoolean("strict_mode_youtube", it).apply()
+                                }
+                            )
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+                            AppFilterItem(
+                                appName = "Instagram Reels",
+                                isBlocked = blockInstagram,
+                                onBlockChange = { 
+                                    blockInstagram = it 
+                                    sharedPrefs.edit().putBoolean("block_instagram", it).apply()
+                                },
+                                isStrict = strictModeInstagram,
+                                onStrictChange = { 
+                                    strictModeInstagram = it 
+                                    sharedPrefs.edit().putBoolean("strict_mode_instagram", it).apply()
+                                }
+                            )
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.surfaceVariant)
+
+                            AppFilterItem(
+                                appName = "Snapchat Spotlight",
+                                isBlocked = blockSnapchat,
+                                onBlockChange = { 
+                                    blockSnapchat = it 
+                                    sharedPrefs.edit().putBoolean("block_snapchat", it).apply()
+                                },
+                                isStrict = strictModeSnapchat,
+                                onStrictChange = { 
+                                    strictModeSnapchat = it 
+                                    sharedPrefs.edit().putBoolean("strict_mode_snapchat", it).apply()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Stealth Mode Section
+                Column {
+                    Text(
+                        text = "Stealth Mode",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    )
+
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        ),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(20.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Hide App Icon",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Removes app from home screen. Access via Accessibility Settings in phone.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Switch(
+                                checked = hideLauncherIcon,
+                                onCheckedChange = { isHidden ->
+                                    hideLauncherIcon = isHidden
+                                    sharedPrefs.edit().putBoolean("hide_launcher_icon", isHidden).apply()
+                                    
+                                    val componentName = ComponentName(context, "com.example.SplashActivity")
+                                    context.packageManager.setComponentEnabledSetting(
+                                        componentName,
+                                        if (isHidden) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                        PackageManager.DONT_KILL_APP
+                                    )
+                                    Toast.makeText(context, if (isHidden) "App icon hidden" else "App icon restored", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (showDeveloperSettings) {
+                    Column {
+                        Text(
+                            text = "Developer Settings",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                        )
+
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                            ),
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Show Floating Timer",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Display on-screen cooldown timer overlay when watching shorts.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Switch(
+                                        checked = enableFloatingTimer,
+                                        onCheckedChange = { isEnabled ->
+                                            enableFloatingTimer = isEnabled
+                                            sharedPrefs.edit().putBoolean("enable_floating_timer", isEnabled).apply()
+                                        }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                FilledTonalButton(
+                                    onClick = {
+                                        try {
+                                            val miuiIntent = android.content.Intent().apply {
+                                                setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                                                putExtra("package_name", context.packageName)
+                                                putExtra("package_label", "Shorts Blocker")
+                                            }
+                                            context.startActivity(miuiIntent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Not a Xiaomi device or settings not found.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(50)
+                                ) {
+                                    Text("Force Open MIUI Battery Saver", fontWeight = FontWeight.SemiBold)
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedButton(
+                                    onClick = {
+                                        showDeveloperSettings = false
+                                        settingsClickCount = 0
+                                        sharedPrefs.edit().putBoolean("show_developer_settings", false).apply()
+                                        Toast.makeText(context, "Developer Settings Hidden", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(50)
+                                ) {
+                                    Text("Hide Developer Settings")
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        showDeveloperSettings = false
-                        settingsClickCount = 0
-                        sharedPrefs.edit().putBoolean("show_developer_settings", false).apply()
-                        Toast.makeText(context, "Developer Settings Hidden", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally)
-                ) {
-                    Text("Hide Developer Settings")
-                }
             }
-
         }
     }
 }
@@ -1019,16 +1287,43 @@ fun PasswordCriterion(text: String, met: Boolean) {
 
 @Composable
 fun AppFilterItem(appName: String, isBlocked: Boolean, onBlockChange: (Boolean) -> Unit, isStrict: Boolean, onStrictChange: (Boolean) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(appName, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) {
+            Text(
+                text = appName,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Switch(checked = isBlocked, onCheckedChange = onBlockChange)
         }
         if (isBlocked) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Strict Mode (No Password)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                Checkbox(checked = isStrict, onCheckedChange = onStrictChange)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onStrictChange(!isStrict) }
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Checkbox(checked = isStrict, onCheckedChange = onStrictChange)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Strict Mode (No Password)",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

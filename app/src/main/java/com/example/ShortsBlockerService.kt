@@ -957,6 +957,28 @@ class ShortsBlockerService : AccessibilityService() {
                 val unlockButton = innerView.findViewById<Button>(R.id.unlock_button)
                 val exitButton = innerView.findViewById<Button>(R.id.exit_button)
 
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+                    (sharedPreferences?.getBoolean("material_you_dynamic", true) ?: true)
+                ) {
+                    try {
+                        val cardContainer = innerView.findViewById<android.view.View>(R.id.overlay_card_container)
+                        val titleView = innerView.findViewById<android.widget.TextView>(R.id.overlay_title)
+                        val subtitleView = innerView.findViewById<android.widget.TextView>(R.id.overlay_subtitle)
+                        val surfaceColor = getColor(android.R.color.system_neutral1_900)
+                        val accentPrimary = getColor(android.R.color.system_accent1_200)
+                        val onAccentPrimary = getColor(android.R.color.system_accent1_900)
+                        val subtitleColor = getColor(android.R.color.system_neutral2_200)
+
+                        cardContainer?.background?.mutate()?.setTint(surfaceColor)
+                        titleView?.setTextColor(accentPrimary)
+                        subtitleView?.setTextColor(subtitleColor)
+                        unlockButton?.backgroundTintList = android.content.res.ColorStateList.valueOf(accentPrimary)
+                        unlockButton?.setTextColor(onAccentPrimary)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
                 unlockButton?.setOnClickListener {
                     val correctPassword = try {
                         sharedPreferences?.getString("master_password", "I will not waste my time") ?: "I will not waste my time"

@@ -94,8 +94,6 @@ class DailyReliefViewModel(application: Application) : AndroidViewModel(applicat
     }
 }
 
-val CobaltBlue = Color(0xFF002080)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyReliefBottomSheet(onDismiss: () -> Unit) {
@@ -159,39 +157,44 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
         
         Spacer(modifier = Modifier.height(32.dp))
         
-        // Professional Radial Timer
+        // Responsive Radial Timer
         Box(contentAlignment = Alignment.Center) {
+            val primaryColor = MaterialTheme.colorScheme.primary
+            val secondaryColor = MaterialTheme.colorScheme.secondary
             CircularSlider(
                 value = reliefMinutes,
                 onValueChange = { viewModel.setReliefMinutes(it) },
                 modifier = Modifier
-                    .size(320.dp)
-                    .padding(16.dp),
-                maxValue = 240 // Allow up to 4 hours (240 mins)
+                    .sizeIn(maxWidth = 280.dp, maxHeight = 280.dp)
+                    .fillMaxWidth(0.75f)
+                    .aspectRatio(1f)
+                    .padding(8.dp),
+                maxValue = 240
             )
             
             // Center content
             CentralTextCounter(value = reliefMinutes)
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         // Buttons Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val primaryColor = MaterialTheme.colorScheme.primary
             // Preset Button
             Box {
                 FilledIconButton(
                     onClick = { showPresets = true },
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(52.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = CobaltBlue.copy(alpha = 0.1f),
-                        contentColor = CobaltBlue
+                        containerColor = primaryColor.copy(alpha = 0.12f),
+                        contentColor = primaryColor
                     )
                 ) {
                     Icon(Icons.Rounded.MoreTime, contentDescription = "Presets")
@@ -225,7 +228,7 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
                     text = String.format(Locale.getDefault(), "%02d:00", reliefMinutes),
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = CobaltBlue
+                    color = primaryColor
                 )
                 Text(
                     text = "Mins Set",
@@ -238,11 +241,11 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
             if (isReliefActive) {
                 Button(
                     onClick = { viewModel.toggleReliefActive() },
-                    modifier = Modifier.height(48.dp).width(80.dp),
+                    modifier = Modifier.height(48.dp).width(84.dp),
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = CobaltBlue,
-                        contentColor = Color.White
+                        containerColor = primaryColor,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
                     Text("ON", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -250,11 +253,11 @@ private fun DailyReliefContent(onDismiss: () -> Unit) {
             } else {
                 OutlinedButton(
                     onClick = { viewModel.toggleReliefActive() },
-                    modifier = Modifier.height(48.dp).width(80.dp),
+                    modifier = Modifier.height(48.dp).width(84.dp),
                     shape = RoundedCornerShape(50),
-                    border = BorderStroke(2.dp, CobaltBlue),
+                    border = BorderStroke(2.dp, primaryColor),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = CobaltBlue
+                        contentColor = primaryColor
                     )
                 ) {
                     Text("OFF", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -280,7 +283,7 @@ fun HourglassIcon() {
     Icon(
         imageVector = Icons.Rounded.HourglassBottom,
         contentDescription = null,
-        tint = CobaltBlue,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .size(28.dp)
             .rotate(angle)
@@ -418,9 +421,10 @@ fun CircularSlider(
     }
 
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val primaryColor = MaterialTheme.colorScheme.primary
     val gradientColors = listOf(
-        CobaltBlue.copy(alpha = 0.6f),
-        CobaltBlue
+        primaryColor.copy(alpha = 0.6f),
+        primaryColor
     )
 
     val thumbPaint = remember {
@@ -429,7 +433,12 @@ fun CircularSlider(
             isAntiAlias = true
         }
     }
-    val shadowColor = android.graphics.Color.argb(50, 0, 71, 171)
+    val shadowColor = android.graphics.Color.argb(
+        90,
+        (primaryColor.red * 255).toInt(),
+        (primaryColor.green * 255).toInt(),
+        (primaryColor.blue * 255).toInt()
+    )
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(
