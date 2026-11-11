@@ -306,6 +306,7 @@ class ShortsBlockerService : AccessibilityService() {
             windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
             sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
             audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            StealthModeManager.ensureSplashEnabledIfNeeded(this)
         } catch (t: Throwable) {
             t.printStackTrace()
         }
@@ -323,8 +324,7 @@ class ShortsBlockerService : AccessibilityService() {
                 ).apply {
                     description = "Keeps the blocker service alive."
                 }
-                val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager.createNotificationChannel(channel)
+                notificationManagerCompat.createNotificationChannel(channel)
             }
 
             val notification = NotificationCompat.Builder(this, "shorts_blocker_channel")
@@ -336,15 +336,8 @@ class ShortsBlockerService : AccessibilityService() {
                 .setOngoing(true)
                 .build()
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
+            notificationManagerCompat.notify(NOTIFICATION_ID, notification)
         } catch (t: Throwable) {
-            // Do not let ForegroundServiceStartNotAllowedException or SecurityException kill the AccessibilityService
             t.printStackTrace()
         }
 
@@ -357,6 +350,10 @@ class ShortsBlockerService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         checkJob?.cancel()
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
+        } catch (t: Throwable) {}
         ReminderReceiver.scheduleNextReminder(this)
         return super.onUnbind(intent)
     }
@@ -365,6 +362,10 @@ class ShortsBlockerService : AccessibilityService() {
         super.onDestroy()
         checkJob?.cancel()
         serviceScope.cancel()
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
+        } catch (t: Throwable) {}
         removeFrictionOverlay()
         removeProgressOverlay()
     }

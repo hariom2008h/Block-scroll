@@ -35,45 +35,12 @@
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.App.Starting">
-        </activity>
-
-        <activity-alias
-            android:name=".DefaultLauncherAlias"
-            android:targetActivity=".SplashActivity"
-            android:enabled="true"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </activity-alias>
-
-        <activity
-            android:name=".GhostTrapActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.NoDisplay"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity="">
         </activity>
-
-        <activity-alias
-            android:name=".GhostLauncherAlias"
-            android:targetActivity=".GhostTrapActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:label="@string/ghost_app_name"
-            android:icon="@drawable/ic_transparent_ghost"
-            android:roundIcon="@drawable/ic_transparent_ghost">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
         <receiver
             android:name=".BootReceiver"
@@ -101,7 +68,6 @@
         <service
             android:name=".ShortsBlockerService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:foregroundServiceType="specialUse"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -109,9 +75,6 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Accessibility Helper" />
         </service>
 
         <provider

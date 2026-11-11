@@ -58,11 +58,6 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
-  override fun onResume() {
-    super.onResume()
-    StealthModeManager.syncRecentsExclusion(this)
-  }
-
   override fun onCreate(savedInstanceState: Bundle?) {
     installSplashScreen()
     super.onCreate(savedInstanceState)
@@ -77,7 +72,7 @@ class MainActivity : ComponentActivity() {
         kotlin.system.exitProcess(1)
     }
 
-    StealthModeManager.syncRecentsExclusion(this)
+    StealthModeManager.ensureSplashEnabledIfNeeded(this)
     enableEdgeToEdge()
     setContent {
       if (crashLog != null) {
@@ -944,8 +939,8 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     var hideLauncherIcon by remember {
         mutableStateOf(StealthModeManager.isStealthEnabled(context))
     }
-    var useGhostAlias by remember {
-        mutableStateOf(StealthModeManager.useGhostAliasOnModernAndroid(context))
+    var forceComponentDisable by remember {
+        mutableStateOf(StealthModeManager.useLegacyComponentDisable(context))
     }
 
     var showDeveloperSettings by remember {
@@ -1175,11 +1170,11 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                                         StealthModeManager.setStealthEnabled(
                                             context = context,
                                             hidden = isHidden,
-                                            useGhostAlias = useGhostAlias
+                                            forceComponentDisable = forceComponentDisable
                                         )
                                         Toast.makeText(
                                             context,
-                                            if (isHidden) "Stealth Mode ON: Open via Accessibility Settings" else "App icon restored to launcher",
+                                            if (isHidden) "Stealth Mode ON: Open via Accessibility Settings" else "Home screen access restored",
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
@@ -1199,37 +1194,37 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clickable {
-                                                        val newValue = !useGhostAlias
-                                                        useGhostAlias = newValue
+                                                        val newValue = !forceComponentDisable
+                                                        forceComponentDisable = newValue
                                                         StealthModeManager.setStealthEnabled(
                                                             context = context,
                                                             hidden = hideLauncherIcon,
-                                                            useGhostAlias = newValue
+                                                            forceComponentDisable = newValue
                                                         )
                                                     }
                                                     .padding(horizontal = 14.dp, vertical = 12.dp)
                                             ) {
                                                 Checkbox(
-                                                    checked = useGhostAlias,
+                                                    checked = forceComponentDisable,
                                                     onCheckedChange = { newValue ->
-                                                        useGhostAlias = newValue
+                                                        forceComponentDisable = newValue
                                                         StealthModeManager.setStealthEnabled(
                                                             context = context,
                                                             hidden = hideLauncherIcon,
-                                                            useGhostAlias = newValue
+                                                            forceComponentDisable = newValue
                                                         )
                                                     }
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
-                                                        text = "Android 10+ Transparent Ghost Shield",
+                                                        text = "Force Disable Launcher Component",
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         fontWeight = FontWeight.Bold,
                                                         color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                     Text(
-                                                        text = "Uses an invisible, unclickable blank slot to stop Android 10–15 from forcing the visible app icon back onto the launcher.",
+                                                        text = "Keep OFF on Vivo/Xiaomi/Android 13+ if your phone automatically turns off Accessibility when the launcher component is disabled.",
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
