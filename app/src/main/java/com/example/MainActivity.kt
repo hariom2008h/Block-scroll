@@ -61,32 +61,31 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     installSplashScreen()
     super.onCreate(savedInstanceState)
-    
+
     val sharedPrefs = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
-    val crashLog = sharedPrefs.getString("crash_log", null)
-    
-    Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
-        val sw = java.io.StringWriter()
-        exception.printStackTrace(java.io.PrintWriter(sw))
-        sharedPrefs.edit().putString("crash_log", sw.toString()).commit()
-        kotlin.system.exitProcess(1)
+    if (sharedPrefs.contains("crash_log")) {
+      sharedPrefs.edit().remove("crash_log").apply()
     }
 
-    StealthModeManager.ensureSplashEnabledIfNeeded(this)
+    StealthModeManager.applyRecentsStealth(this)
+
+    val isLaunchedFromHomeScreen = intent?.action == Intent.ACTION_MAIN &&
+        intent?.hasCategory(Intent.CATEGORY_LAUNCHER) == true
+    if (isLaunchedFromHomeScreen &&
+        StealthModeManager.isStealthEnabled(this) &&
+        StealthModeManager.isAccessibilityServiceRunning(this)
+    ) {
+      Toast.makeText(
+          this,
+          "Stealth Mode ON: Open via Settings → Accessibility → Shorts Blocker",
+          Toast.LENGTH_SHORT
+      ).show()
+      finish()
+      return
+    }
+
     enableEdgeToEdge()
     setContent {
-      if (crashLog != null) {
-          Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-              Column {
-                  Text("CRASH DETECTED", color = Color.Red, fontWeight = FontWeight.Bold)
-                  Text(crashLog, style = MaterialTheme.typography.bodySmall, modifier = Modifier.verticalScroll(rememberScrollState()))
-                  Button(onClick = { sharedPrefs.edit().remove("crash_log").apply(); recreate() }) {
-                      Text("Clear and Restart")
-                  }
-              }
-          }
-          return@setContent
-      }
       
       var themeMode by remember { mutableIntStateOf(sharedPrefs.getInt("theme_mode", 0)) } // 0: Auto, 1: Light, 2: Dark
       var useDynamicColor by remember { mutableStateOf(sharedPrefs.getBoolean("material_you_dynamic", true)) }
@@ -336,10 +335,22 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         context.getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
     }
 
-    var password by remember { 
-        mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "") 
+    var savedPassword by remember {
+        mutableStateOf(sharedPrefs.getString("master_password", "I will not waste my time") ?: "I will not waste my time")
     }
-    
+    var isCustomPasswordSet by remember {
+        mutableStateOf(
+            sharedPrefs.getBoolean("is_custom_password_set", false) ||
+                savedPassword != "I will not waste my time"
+        )
+    }
+    var password by remember {
+        mutableStateOf(if (isCustomPasswordSet) savedPassword else "")
+    }
+    var showCurrentPassword by remember { mutableStateOf(!isCustomPasswordSet) }
+    val passwordSuggestions = remember { listOf("Focus@247", "Mind#582", "Goal$369", "Stop!481", "Calm%739") }
+    var suggestionIdx by remember { mutableIntStateOf(0) }
+
     val cooldownOptions = listOf(1, 2, 3, 4, 5)
     var cooldownIndex by remember {
         val mins = sharedPrefs.getInt("session_duration_minutes", 5)
@@ -354,8 +365,14 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
     
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var bypassCount by remember { mutableIntStateOf(sharedPrefs.getInt("bypass_count", 0)) }
-    var isPasswordSectionExpanded by remember { mutableStateOf(false) }
+    var isPasswordSectionExpanded by remember { mutableStateOf(!isCustomPasswordSet) }
     var showDailyReliefSheet by remember { mutableStateOf(false) }
+    var showPostOnboardingPasswordSheet by remember {
+        mutableStateOf(
+            !isCustomPasswordSet &&
+                !sharedPrefs.getBoolean("post_onboarding_password_prompt_shown", false)
+        )
+    }
     
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -375,6 +392,163 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 allowanceMins = sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()
             }
         )
+    }
+
+    if (showPostOnboardingPasswordSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                sharedPrefs.edit().putBoolean("post_onboarding_password_prompt_shown", true).apply()
+                showPostOnboardingPasswordSheet = false
+                isPasswordSectionExpanded = true
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            val hasMinLength = password.length >= 6
+            val hasUpper = password.any { it.isUpperCase() }
+            val hasLower = password.any { it.isLowerCase() }
+            val hasDigit = password.any { it.isDigit() }
+            val hasSpecial = password.any { !it.isLetterOrDigit() }
+            val hasNoRepeats = password.isNotEmpty() && password.toSet().size == password.length
+            val isValidPass = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    modifier = Modifier.size(64.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Set Your Friction Password",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Yeh kisi security ke liye nahi hai — balki Shorts aur Reels dekhte time rukaawat (friction) paida karne ke liye hai! Jab aap Shorts/Reels kholenge, toh yeh tedha-medha password type karne mein dikkat aayegi taaki aap unmein atke na rahein.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Step 1: Type a Hard Friction Password",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    FilledTonalButton(
+                        onClick = {
+                            password = passwordSuggestions[suggestionIdx % passwordSuggestions.size]
+                            suggestionIdx++
+                        },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp),
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text("Auto-Generate", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Friction Password (रुकावट पासवर्ड)") },
+                    placeholder = { Text("e.g. Focus@247") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        text = "Step 2: 6 Friction Rules (Taaki type karne mein mehnat lage)",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    PasswordCriterion(text = "At least 6 characters (कम से कम 6 अक्षर)", met = hasMinLength)
+                    PasswordCriterion(text = "Contains uppercase letter (A-Z)", met = hasUpper)
+                    PasswordCriterion(text = "Contains lowercase letter (a-z)", met = hasLower)
+                    PasswordCriterion(text = "Contains a number (0-9)", met = hasDigit)
+                    PasswordCriterion(text = "Contains a special symbol (@ # $ % !)", met = hasSpecial)
+                    PasswordCriterion(text = "No repeated characters (कोई अक्षर दोबारा न हो)", met = hasNoRepeats)
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Button(
+                    onClick = {
+                        sharedPrefs.edit()
+                            .putString("master_password", password)
+                            .putBoolean("is_custom_password_set", true)
+                            .putBoolean("post_onboarding_password_prompt_shown", true)
+                            .apply()
+                        savedPassword = password
+                        isCustomPasswordSet = true
+                        showCurrentPassword = true
+                        isPasswordSectionExpanded = false
+                        showPostOnboardingPasswordSheet = false
+                        Toast.makeText(context, "✅ Friction Password Saved!", Toast.LENGTH_LONG).show()
+                    },
+                    enabled = isValidPass,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Step 3: Save Friction Password", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = {
+                        sharedPrefs.edit().putBoolean("post_onboarding_password_prompt_shown", true).apply()
+                        showPostOnboardingPasswordSheet = false
+                        isPasswordSectionExpanded = true
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Set on Home Screen Later (होम स्क्रीन से सेट करें)")
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -569,15 +743,34 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                     }
                 }
 
-                // Security Section
+                // Mindful Friction Section
                 item {
-                    Text(
-                        text = "Security",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Scroll Friction (स्क्रॉल स्पीड-ब्रेकर)",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = if (isCustomPasswordSet) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                text = if (isCustomPasswordSet) "Active ✓" else "Set Friction Password",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isCustomPasswordSet) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                     ElevatedCard(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.elevatedCardColors(
@@ -611,13 +804,17 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Master Password",
+                                        text = "Friction Password",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "Required when an addictive scroll is intercepted.",
+                                        text = if (isCustomPasswordSet) {
+                                            "Creates typing effort when Shorts/Reels open so you don't get stuck scrolling."
+                                        } else {
+                                            "Shorts/Reels dekhte time rukaawat paida karne ke liye niche apna Friction Password set karein."
+                                        },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -636,12 +833,103 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Always show Current Active Friction Password clearly so the user never wonders what it is
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (isCustomPasswordSet) "Current Friction Password:" else "Current Default Friction Phrase:",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = if (showCurrentPassword) savedPassword else "••••••••••••",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = { showCurrentPassword = !showCurrentPassword }
+                                    ) {
+                                        Text(
+                                            text = if (showCurrentPassword) "Hide" else "Show",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
                             androidx.compose.animation.AnimatedVisibility(visible = isPasswordSectionExpanded) {
                                 Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                                    if (!isCustomPasswordSet) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp)) {
+                                                Text(
+                                                    text = "Friction Password Kyon Aur Kaise Set Karein?",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "Yeh security ke liye nahi, balki Shorts/Reels kholte waqt aapko rokne (dikkat paida karne) ke liye hai:\n1. Niche ek tedha-medha password likhein (jaise Focus@247) ya 'Auto-Generate' dabayein.\n2. Niche ke 6 Friction Rules green (✓) karein taaki ise baar-baar type karne mein aalas aaye.\n3. Phir 'Save Friction Password' button dabayein.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Step 1: Type a Hard Friction Password",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        FilledTonalButton(
+                                            onClick = {
+                                                password = passwordSuggestions[suggestionIdx % passwordSuggestions.size]
+                                                suggestionIdx++
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp),
+                                            shape = RoundedCornerShape(50)
+                                        ) {
+                                            Text("Auto-Generate", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
                                     OutlinedTextField(
                                         value = password,
                                         onValueChange = { password = it },
-                                        label = { Text("Password") },
+                                        label = { Text("New Friction Password") },
+                                        placeholder = { Text("e.g. Focus@247") },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                         shape = RoundedCornerShape(16.dp),
@@ -651,6 +939,14 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
+
+                                    Text(
+                                        text = "Step 2: 6 Friction Rules (Taaki type karne mein mehnat lage)",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     
                                     val hasMinLength = password.length >= 6
                                     val hasUpper = password.any { it.isUpperCase() }
@@ -661,27 +957,35 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
 
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        PasswordCriterion(text = "At least 6 characters", met = hasMinLength)
-                                        PasswordCriterion(text = "Contains uppercase letter", met = hasUpper)
-                                        PasswordCriterion(text = "Contains lowercase letter", met = hasLower)
-                                        PasswordCriterion(text = "Contains a number", met = hasDigit)
-                                        PasswordCriterion(text = "Contains a special symbol", met = hasSpecial)
-                                        PasswordCriterion(text = "No repeated characters", met = hasNoRepeats)
+                                        PasswordCriterion(text = "At least 6 characters (कम से कम 6 अक्षर)", met = hasMinLength)
+                                        PasswordCriterion(text = "Contains uppercase letter (A-Z)", met = hasUpper)
+                                        PasswordCriterion(text = "Contains lowercase letter (a-z)", met = hasLower)
+                                        PasswordCriterion(text = "Contains a number (0-9)", met = hasDigit)
+                                        PasswordCriterion(text = "Contains a special symbol (@ # $ % !)", met = hasSpecial)
+                                        PasswordCriterion(text = "No repeated characters (कोई अक्षर दोबारा न हो)", met = hasNoRepeats)
                                     }
 
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Button(
                                         onClick = {
-                                            sharedPrefs.edit().putString("master_password", password).apply()
-                                            Toast.makeText(context, "Password Saved securely", Toast.LENGTH_SHORT).show()
+                                            sharedPrefs.edit()
+                                                .putString("master_password", password)
+                                                .putBoolean("is_custom_password_set", true)
+                                                .apply()
+                                            savedPassword = password
+                                            isCustomPasswordSet = true
+                                            showCurrentPassword = true
+                                            Toast.makeText(context, "✅ Friction Password Saved!", Toast.LENGTH_LONG).show()
                                             isPasswordSectionExpanded = false
                                         },
                                         enabled = isValidPassword,
-                                        modifier = Modifier.align(Alignment.End),
-                                        shape = RoundedCornerShape(50),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                     ) {
-                                        Text("Save Credentials", fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Step 3: Save Friction Password", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -939,9 +1243,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
     var hideLauncherIcon by remember {
         mutableStateOf(StealthModeManager.isStealthEnabled(context))
     }
-    var forceComponentDisable by remember {
-        mutableStateOf(StealthModeManager.useLegacyComponentDisable(context))
-    }
 
     var showDeveloperSettings by remember {
         mutableStateOf(sharedPrefs.getBoolean("show_developer_settings", false))
@@ -1169,8 +1470,7 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
                                         hideLauncherIcon = isHidden
                                         StealthModeManager.setStealthEnabled(
                                             context = context,
-                                            hidden = isHidden,
-                                            forceComponentDisable = forceComponentDisable
+                                            hidden = isHidden
                                         )
                                         Toast.makeText(
                                             context,
@@ -1183,57 +1483,6 @@ fun ShortsBlockerSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: (
 
                             androidx.compose.animation.AnimatedVisibility(visible = hideLauncherIcon) {
                                 Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                        Surface(
-                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable {
-                                                        val newValue = !forceComponentDisable
-                                                        forceComponentDisable = newValue
-                                                        StealthModeManager.setStealthEnabled(
-                                                            context = context,
-                                                            hidden = hideLauncherIcon,
-                                                            forceComponentDisable = newValue
-                                                        )
-                                                    }
-                                                    .padding(horizontal = 14.dp, vertical = 12.dp)
-                                            ) {
-                                                Checkbox(
-                                                    checked = forceComponentDisable,
-                                                    onCheckedChange = { newValue ->
-                                                        forceComponentDisable = newValue
-                                                        StealthModeManager.setStealthEnabled(
-                                                            context = context,
-                                                            hidden = hideLauncherIcon,
-                                                            forceComponentDisable = newValue
-                                                        )
-                                                    }
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = "Force Disable Launcher Component",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Text(
-                                                        text = "Keep OFF on Vivo/Xiaomi/Android 13+ if your phone automatically turns off Accessibility when the launcher component is disabled.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                    }
-
                                     Surface(
                                         color = MaterialTheme.colorScheme.secondaryContainer,
                                         shape = RoundedCornerShape(16.dp),

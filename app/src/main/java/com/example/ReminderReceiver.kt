@@ -46,7 +46,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 mStringColonSplitter.setString(settingValue)
                 while (mStringColonSplitter.hasNext()) {
                     val accessibilityService = mStringColonSplitter.next()
-                    if (accessibilityService.equals("${context.packageName}/${ShortsBlockerService::class.java.name}", ignoreCase = true)) {
+                    if (accessibilityService.startsWith("${context.packageName}/", ignoreCase = true)) {
                         return true
                     }
                 }

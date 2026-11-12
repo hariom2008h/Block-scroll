@@ -1163,6 +1163,11 @@ fun openAutoStartSettings(context: Context) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
+    val context = LocalContext.current
+    val privacyPolicyUrl = "https://hariom2008h.github.io/Shorts-blocker-pages/#privacy"
+    var isLoadingWebPage by remember { mutableStateOf(true) }
+    var webLoadFailed by remember { mutableStateOf(false) }
+
     androidx.activity.compose.BackHandler { onNavigateBack() }
 
     Scaffold(
@@ -1176,6 +1181,20 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
                         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
                 },
+                actions = {
+                    TextButton(
+                        onClick = {
+                            try {
+                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
+                                context.startActivity(browserIntent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Text("Open in Browser", fontWeight = FontWeight.Bold)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary
@@ -1183,48 +1202,109 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
             )
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
+                .padding(innerPadding)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 640.dp)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
-            ) {
-                Card(
+            if (isLoadingWebPage && !webLoadFailed) {
+                LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = "Privacy-First Architecture",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Shorts Blocker operates entirely on your device. It utilizes Android Accessibility Services solely to detect and intercept short-form video algorithms (YouTube Shorts, Instagram Reels, and Snapchat Spotlight).\n\n• Zero Data Tracking: We do not collect, monitor, store, or transmit your search history, personal messages, or screen contents.\n• Local Logic: All blocking heuristics and cooldown timers are calculated completely offline.\n• Minimal Permissions: Permissions granted to this app are used strictly to provide the mindful friction overlay.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 22.sp
-                        )
-                    }
-                }
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = onNavigateBack,
-                    modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().align(Alignment.CenterHorizontally),
-                    shape = RoundedCornerShape(12.dp)
+            if (!webLoadFailed) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            android.webkit.WebView(ctx).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                webViewClient = object : android.webkit.WebViewClient() {
+                                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        isLoadingWebPage = false
+                                    }
+
+                                    override fun onReceivedError(
+                                        view: android.webkit.WebView?,
+                                        request: android.webkit.WebResourceRequest?,
+                                        error: android.webkit.WebResourceError?
+                                    ) {
+                                        super.onReceivedError(view, request, error)
+                                        if (request?.isForMainFrame == true) {
+                                            isLoadingWebPage = false
+                                            webLoadFailed = true
+                                        }
+                                    }
+                                }
+                                loadUrl(privacyPolicyUrl)
+                            }
+                        }
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    Text("I Understand", fontWeight = FontWeight.Bold)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 640.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Text(
+                                    text = "Privacy-First Architecture",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Shorts Blocker operates entirely on your device. It utilizes Android Accessibility Services solely to detect and intercept short-form video algorithms (YouTube Shorts, Instagram Reels, and Snapchat Spotlight).\n\n• Zero Data Tracking: We do not collect, monitor, store, or transmit your search history, personal messages, or screen contents.\n• Local Logic: All blocking heuristics and cooldown timers are calculated completely offline.\n• Minimal Permissions: Permissions granted to this app are used strictly to provide the mindful friction overlay.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    lineHeight = 22.sp
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        try {
+                                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
+                                            context.startActivity(browserIntent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("View Full Policy Online ($privacyPolicyUrl)", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().align(Alignment.CenterHorizontally),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("I Understand", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -1234,6 +1314,11 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HelpFAQScreen(onNavigateBack: () -> Unit) {
+    val context = LocalContext.current
+    val helpUrl = "https://hariom2008h.github.io/Shorts-blocker-pages/#help"
+    var isLoadingWebPage by remember { mutableStateOf(true) }
+    var webLoadFailed by remember { mutableStateOf(false) }
+
     androidx.activity.compose.BackHandler { onNavigateBack() }
 
     Scaffold(
@@ -1247,6 +1332,20 @@ fun HelpFAQScreen(onNavigateBack: () -> Unit) {
                         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
                 },
+                actions = {
+                    TextButton(
+                        onClick = {
+                            try {
+                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(helpUrl))
+                                context.startActivity(browserIntent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Text("Open in Browser", fontWeight = FontWeight.Bold)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary
@@ -1254,34 +1353,96 @@ fun HelpFAQScreen(onNavigateBack: () -> Unit) {
             )
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
+                .padding(innerPadding)
         ) {
-            androidx.compose.foundation.lazy.LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 640.dp)
-                    .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    FAQItem("How does Shorts Blocker work?", "When you swipe into YouTube Shorts, Instagram Reels, or Snapchat Spotlight, the blocker detects the screen and displays an intentional friction prompt requesting your master password.")
+            if (isLoadingWebPage && !webLoadFailed) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (!webLoadFailed) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            android.webkit.WebView(ctx).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                webViewClient = object : android.webkit.WebViewClient() {
+                                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        isLoadingWebPage = false
+                                    }
+
+                                    override fun onReceivedError(
+                                        view: android.webkit.WebView?,
+                                        request: android.webkit.WebResourceRequest?,
+                                        error: android.webkit.WebResourceError?
+                                    ) {
+                                        super.onReceivedError(view, request, error)
+                                        if (request?.isForMainFrame == true) {
+                                            isLoadingWebPage = false
+                                            webLoadFailed = true
+                                        }
+                                    }
+                                }
+                                loadUrl(helpUrl)
+                            }
+                        }
+                    )
                 }
-                item {
-                    FAQItem("Why is Accessibility Service required?", "Android Accessibility enables the app to know which screen you are viewing without needing invasive system permissions or internet access. It is processed 100% locally on your phone.")
-                }
-                item {
-                    FAQItem("Why is Auto-Start / Battery Unrestricted required?", "OEM Android operating systems (like MIUI/HyperOS, ColorOS, One UI) frequently stop background services to conserve power. Granting unrestricted battery access ensures the blocker remains active after locks and reboots.")
-                }
-                item {
-                    FAQItem("What is Daily Relief Time?", "You can configure a daily allowance of mindful short-form viewing. Once this allowance is exhausted, strict friction is enforced.")
-                }
-                item {
-                    FAQItem("Does the app send any of my data online?", "No. The app does not transmit any screen content or personal activity. It works completely on-device without cloud telemetry.")
+            } else {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 640.dp)
+                            .padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            FAQItem("How does Shorts Blocker work?", "When you swipe into YouTube Shorts, Instagram Reels, or Snapchat Spotlight, the blocker detects the screen and displays an intentional scroll speed-breaker prompt requesting your friction password.")
+                        }
+                        item {
+                            FAQItem("Why is Accessibility Service required?", "Android Accessibility enables the app to know which screen you are viewing without needing invasive system permissions or internet access. It is processed 100% locally on your phone.")
+                        }
+                        item {
+                            FAQItem("Why is Auto-Start / Battery Unrestricted required?", "OEM Android operating systems (like MIUI/HyperOS, ColorOS, One UI) frequently stop background services to conserve power. Granting unrestricted battery access ensures the blocker remains active after locks and reboots.")
+                        }
+                        item {
+                            FAQItem("What is Daily Relief Time?", "You can configure a daily allowance of mindful short-form viewing. Once this allowance is exhausted, strict scroll friction is enforced.")
+                        }
+                        item {
+                            FAQItem("Does the app send any of my data online?", "No. The app does not transmit any screen content or personal activity. It works completely on-device without cloud telemetry.")
+                        }
+                        item {
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(helpUrl))
+                                        context.startActivity(browserIntent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("View Full Help & FAQs Online ($helpUrl)", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1426,14 +1587,57 @@ fun AboutScreen(currentVersion: String, onNavigateBack: () -> Unit) {
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
                 ) {
-                    Text(
-                        text = "Shorts Blocker helps you reclaim your time, attention span, and mental peace by applying friction to infinite short-video doomscrolling on social media.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface,
+                    val context = LocalContext.current
+                    Column(
                         modifier = Modifier.padding(20.dp),
-                        lineHeight = 24.sp
-                    )
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Shorts Blocker helps you reclaim your time, attention span, and mental peace by applying friction to infinite short-video doomscrolling on social media.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 24.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        FilledTonalButton(
+                            onClick = {
+                                try {
+                                    val browserIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://hariom2008h.github.io/Shorts-blocker-pages/#privacy")
+                                    )
+                                    context.startActivity(browserIntent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(50)
+                        ) {
+                            Icon(Icons.Rounded.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Official Privacy Policy Page", fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    val browserIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://hariom2008h.github.io/Shorts-blocker-pages/#help")
+                                    )
+                                    context.startActivity(browserIntent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(50)
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.HelpOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Official Help & FAQs Page", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

@@ -40,7 +40,10 @@ class ShortsBlockerService : AccessibilityService() {
     private var isOverlayShowing = false
     private var sharedPreferences: SharedPreferences? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        throwable.printStackTrace()
+    }
+    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob() + coroutineExceptionHandler)
     
     private var lastUnlockTime = 0L
     private var lastShortsActivityTime = 0L
@@ -106,6 +109,7 @@ class ShortsBlockerService : AccessibilityService() {
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
+            delay(1500L) // Allow AccessibilityService binder connection to finish settling
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             while(isActive) {
                 try {
@@ -306,7 +310,6 @@ class ShortsBlockerService : AccessibilityService() {
             windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
             sharedPreferences = getSharedPreferences("shorts_blocker_prefs", Context.MODE_PRIVATE)
             audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            StealthModeManager.ensureSplashEnabledIfNeeded(this)
         } catch (t: Throwable) {
             t.printStackTrace()
         }
@@ -1236,3 +1239,4 @@ class ShortsBlockerService : AccessibilityService() {
         removeFrictionOverlay()
     }
 }
+

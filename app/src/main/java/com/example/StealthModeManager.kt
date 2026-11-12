@@ -1,14 +1,15 @@
 package com.example
 
-import android.content.ComponentName
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
+import android.app.ActivityManager
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 
 object StealthModeManager {
     private const val PREFS_NAME = "shorts_blocker_prefs"
     const val KEY_HIDE_LAUNCHER_ICON = "hide_launcher_icon"
-    const val KEY_FORCE_COMPONENT_HIDE = "stealth_force_component_hide"
 
     fun isStealthEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -16,75 +17,65 @@ object StealthModeManager {
     }
 
     /**
-     * On Android 10+ (especially Vivo, Xiaomi, Oppo, Realme, Samsung), disabling the main
-     * launcher Activity via PackageManager.setComponentEnabledSetting causes the OEM Security
-     * Manager to immediately revoke/unbind AccessibilityService in microseconds.
+     * Enables or disables Stealth Mode without modifying AndroidManifest component states via
+     * PackageManager.setComponentEnabledSetting.
      *
-     * Therefore, on Android 10+, Stealth Mode defaults to Safe Launcher Lock (blocking
-     * SplashActivity from opening MainActivity so the app can ONLY be opened via Accessibility
-     * Settings) without disabling the manifest component, unless the user explicitly opts into
-     * legacy component disabling.
+     * Why: Calling PackageManager.setComponentEnabledSetting on modern Android (Android 10+ / OEM
+     * ROMs like Vivo, Xiaomi, Oppo, Realme, Samsung) broadcasts ACTION_PACKAGE_CHANGED, which
+     * causes the OS AccessibilityManagerService to immediately unbind/revoke AccessibilityService
+     * in microseconds.
      */
-    fun useLegacyComponentDisable(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(
-            KEY_FORCE_COMPONENT_HIDE,
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-        )
-    }
-
     fun setStealthEnabled(
         context: Context,
-        hidden: Boolean,
-        forceComponentDisable: Boolean = useLegacyComponentDisable(context)
+        hidden: Boolean
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean(KEY_HIDE_LAUNCHER_ICON, hidden)
-            .putBoolean(KEY_FORCE_COMPONENT_HIDE, forceComponentDisable)
             .apply()
 
-        val shouldDisableComponent = hidden && forceComponentDisable
-        setSplashComponentDisabled(context, shouldDisableComponent)
-    }
-
-    /**
-     * Repairs SplashActivity if it was left in COMPONENT_ENABLED_STATE_DISABLED from an older APK
-     * installation when legacy component disable is not active.
-     */
-    fun ensureSplashEnabledIfNeeded(context: Context) {
-        val shouldBeDisabled = isStealthEnabled(context) && useLegacyComponentDisable(context)
-        if (!shouldBeDisabled) {
-            setSplashComponentDisabled(context, false)
+        if (context is Activity) {
+            applyRecentsStealth(context, hidden)
         }
     }
 
-    private fun setSplashComponentDisabled(context: Context, disable: Boolean) {
+    fun applyRecentsStealth(activity: Activity, hidden: Boolean = isStealthEnabled(activity)) {
         try {
-            val pm = context.packageManager
-            val splashComponent = ComponentName(context.packageName, "com.example.SplashActivity")
-            val currentState = pm.getComponentEnabledSetting(splashComponent)
-            if (disable) {
-                if (currentState != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
-                    pm.setComponentEnabledSetting(
-                        splashComponent,
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                        PackageManager.DONT_KILL_APP
-                    )
-                }
-            } else {
-                if (currentState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
-                    currentState == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
-                ) {
-                    pm.setComponentEnabledSetting(
-                        splashComponent,
-                        PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
-                        PackageManager.DONT_KILL_APP
-                    )
+            val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            am?.appTasks?.forEach { task ->
+                task.setExcludeFromRecents(hidden)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun isAccessibilityServiceRunning(context: Context): Boolean {
+        try {
+            val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+            val enabledServices = am?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            if (enabledServices != null) {
+                for (service in enabledServices) {
+                    if (service.resolveInfo?.serviceInfo?.packageName == context.packageName) {
+                        return true
+                    }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        try {
+            val enabledServicesStr = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+            if (enabledServicesStr?.contains(context.packageName, ignoreCase = true) == true) {
+                return true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
     }
 }
