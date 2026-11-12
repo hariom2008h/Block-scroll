@@ -12,7 +12,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Info
@@ -91,7 +94,9 @@ fun ShortsBlockerSystemSettingsScreen(
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5)
     ) { uris ->
-        feedbackImages = uris
+        if (uris.isNotEmpty()) {
+            feedbackImages = (feedbackImages + uris).distinct().take(5)
+        }
     }
 
     var pauseForPayments by remember { mutableStateOf(sharedPrefs.getBoolean("pause_for_payments", true)) }
@@ -540,24 +545,85 @@ fun ShortsBlockerSystemSettingsScreen(
                                 placeholder = { Text("Enter your feedback here...") }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 TextButton(
                                     onClick = {
                                         photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                                    }
+                                    },
+                                    enabled = feedbackImages.size < 5
                                 ) {
                                     Text("Add Screenshots (${feedbackImages.size}/5)")
                                 }
+                                if (feedbackImages.isNotEmpty()) {
+                                    TextButton(
+                                        onClick = { feedbackImages = emptyList() }
+                                    ) {
+                                        Text("Clear All", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
                             }
                             if (feedbackImages.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     items(feedbackImages.size) { index ->
+                                        val imageUri = feedbackImages[index]
+                                        val thumbnailBitmap = remember(imageUri) {
+                                            try {
+                                                context.contentResolver.openInputStream(imageUri)?.use { stream ->
+                                                    android.graphics.BitmapFactory.decodeStream(stream)
+                                                }
+                                            } catch (e: Exception) {
+                                                null
+                                            }
+                                        }
                                         Box(
-                                            modifier = Modifier.size(50.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)),
-                                            contentAlignment = Alignment.Center
+                                            modifier = Modifier
+                                                .size(68.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .clickable {
+                                                    feedbackImages = feedbackImages.filterIndexed { i, _ -> i != index }
+                                                }
                                         ) {
-                                            Text("Img ${index+1}", style = MaterialTheme.typography.labelSmall)
+                                            if (thumbnailBitmap != null) {
+                                                androidx.compose.foundation.Image(
+                                                    bitmap = thumbnailBitmap.asImageBitmap(),
+                                                    contentDescription = "Screenshot ${index + 1}",
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("Img ${index + 1}", style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
+                                            Surface(
+                                                onClick = {
+                                                    feedbackImages = feedbackImages.filterIndexed { i, _ -> i != index }
+                                                },
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.errorContainer,
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(4.dp)
+                                                    .size(22.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Close,
+                                                        contentDescription = "Remove Image",
+                                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

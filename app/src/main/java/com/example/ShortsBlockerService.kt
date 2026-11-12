@@ -50,8 +50,69 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var checkJob: Job? = null
     private val isChecking = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile
+    private var currentForegroundPackage: String = ""
     
     private var lastReliefUpdateTime = 0L
+
+    private val knownPaymentAndBankingPackages = setOf(
+        "com.google.android.apps.nbu.paisa.user", // Google Pay
+        "net.one97.paytm", // Paytm
+        "com.phonepe.app", // PhonePe
+        "in.org.npci.upiapp", // BHIM
+        "com.naviapp", // Navi
+        "com.dreamplug.androidapp", // CRED
+        "in.amazon.mShop.android.shopping", // Amazon Pay
+        "com.mobikwik_new", // MobiKwik
+        "com.freecharge.android", // Freecharge
+        "money.super.payments", // Super.money
+        "com.fampay.in", // FamPay
+        "money.jupiter", // Jupiter
+        "com.epifi.paisa", // Fi Money
+        "indwin.c3.shareapp", // Slice
+        "com.sbi.lotusintouch", // SBI YONO
+        "com.sbi.SBIFreedomPlus", // SBI YONO Lite
+        "com.snapwork.hdfc", // HDFC Bank
+        "com.csam.icici.bank.imobile", // ICICI iMobile Pay
+        "com.axis.mobile", // Axis Mobile
+        "com.msf.kbank.mobile", // Kotak811
+        "com.bankofbaroda.mconnect", // BoB World
+        "com.Version1", // PNB One
+        "com.canarabank.mobility", // Canara ai1
+        "com.infrasoft.uboi", // Union Bank Vyom
+        "com.ipop.ippbmobile", // India Post Payments Bank
+        "com.myairtelapp", // Airtel Thanks
+        "com.jio.myjio", // MyJio
+        "com.jio.finance", // JioFinance
+        "org.altruist.BajajExperia", // Bajaj Finserv
+        "com.nextbillion.groww", // Groww
+        "com.zerodha.kite3", // Zerodha Kite
+        "com.msf.angelmobile" // Angel One
+    )
+
+    private fun isTargetSocialApp(pkg: String): Boolean {
+        return pkg.contains("youtube") || pkg.contains("instagram") || pkg.contains("snapchat")
+    }
+
+    private fun isPaymentOrBankingApp(pkg: String): Boolean {
+        if (pkg.isEmpty()) return false
+        if (knownPaymentAndBankingPackages.contains(pkg)) return true
+        val lower = pkg.lowercase()
+        return lower.contains("upi") ||
+            lower.contains("paytm") ||
+            lower.contains("phonepe") ||
+            lower.contains("paisa") ||
+            lower.contains("bhim") ||
+            lower.contains("bank") ||
+            lower.contains("yono") ||
+            lower.contains("imobile") ||
+            lower.contains("hdfc") ||
+            lower.contains("icici") ||
+            lower.contains("kotak") ||
+            lower.contains("wallet") ||
+            lower.contains("fampay") ||
+            lower.contains("finance")
+    }
 
     private fun handleReliefTime(currentTime: Long, packageName: String): Boolean {
         val dailyReliefMinutes = (sharedPreferences?.getInt("daily_relief_minutes", 0) ?: 0).coerceIn(0, 30)
@@ -119,6 +180,12 @@ class ShortsBlockerService : AccessibilityService() {
                         continue
                     }
                     if (!isOverlayShowing) {
+                        val fgPkg = currentForegroundPackage
+                        if (fgPkg.isNotEmpty() && !isTargetSocialApp(fgPkg)) {
+                            removeProgressOverlay()
+                            delay(2000L)
+                            continue
+                        }
                         val currentTime = System.currentTimeMillis()
                         val sessionDurationMinutes = sharedPreferences?.getInt("session_duration_minutes", 2) ?: 2
                         val sessionCooldownMs = sessionDurationMinutes * 60 * 1000L
@@ -130,7 +197,7 @@ class ShortsBlockerService : AccessibilityService() {
                                 val rootNode = try { rootInActiveWindow } catch (e: Exception) { null }
                                 if (rootNode != null) {
                                     val packageName = rootNode.packageName?.toString() ?: ""
-                                    if (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat")) {
+                                    if (isTargetSocialApp(packageName)) {
                                         val blockYT = sharedPreferences?.getBoolean("block_youtube", true) ?: true
                                         val blockIG = sharedPreferences?.getBoolean("block_instagram", true) ?: true
                                         val blockSC = sharedPreferences?.getBoolean("block_snapchat", true) ?: true
@@ -450,19 +517,18 @@ class ShortsBlockerService : AccessibilityService() {
             val packageName = event.packageName?.toString() ?: ""
             val eventType = event.eventType
 
-            val paymentApps = setOf(
-                "com.google.android.apps.nbu.paisa.user", // GPay
-                "net.one97.paytm", // Paytm
-                "com.phonepe.app", // PhonePe
-                "in.org.npci.upiapp", // BHIM
-                "com.naviapp", // Navi
-                "com.dreamplug.androidapp", // CRED
-                "in.amazon.mShop.android.shopping", // Amazon (Amazon Pay)
-                "com.mobikwik_new", // MobiKwik
-                "com.freecharge.android" // Freecharge
-            )
-            
-            if (paymentApps.contains(packageName)) {
+            val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
+            val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
+
+            if (isSystemApp || isKeyboard) {
+                return
+            }
+
+            if (packageName.isNotEmpty() && packageName != this.packageName) {
+                currentForegroundPackage = packageName
+            }
+
+            if (isPaymentOrBankingApp(packageName)) {
                 val pauseForPayments = sharedPreferences?.getBoolean("pause_for_payments", true) ?: true
                 if (pauseForPayments) {
                     if (isOverlayShowing) {
@@ -473,10 +539,15 @@ class ShortsBlockerService : AccessibilityService() {
                 }
             }
 
-            val isSystemApp = packageName == "com.android.systemui" || packageName == "android"
-            val isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("gboard")
-
-            if (isSystemApp || isKeyboard) {
+            val isTargetEvent = packageName.isNotEmpty() && isTargetSocialApp(packageName)
+            if (!isTargetEvent) {
+                val isOurAppActive = packageName == this.packageName
+                if (!isOurAppActive && eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                    if (isOverlayShowing) {
+                        mainHandler.post { removeFrictionOverlay() }
+                    }
+                    removeProgressOverlay()
+                }
                 return
             }
 
@@ -506,50 +577,21 @@ class ShortsBlockerService : AccessibilityService() {
                 }
                 serviceScope.launch {
                     try {
-                        // 1. Check Active Window Package to detect if user left YouTube/Instagram completely
+                        var isAddictiveMedia = false
                         val activeRoot = try { rootInActiveWindow } catch (e: Exception) { null }
                         if (activeRoot != null) {
                             val activePackage = activeRoot.packageName?.toString() ?: ""
-                            
-                            if (activePackage.isNotEmpty()) {
-                                val isTargetActive = activePackage.contains("youtube") || activePackage.contains("instagram") || activePackage.contains("snapchat")
-                                val isOurAppActive = activePackage == this@ShortsBlockerService.packageName
-                                val isSystemRoot = activePackage == "com.android.systemui" || activePackage == "android"
-                                val isKeyboardRoot = activePackage.contains("inputmethod") || activePackage.contains("keyboard") || activePackage.contains("gboard")
-
-                                // If user is in a completely different app, remove overlay safely
-                                if (!isTargetActive && !isOurAppActive && !isSystemRoot && !isKeyboardRoot) {
-                                    if (isOverlayShowing) {
-                                        mainHandler.post { removeFrictionOverlay() }
-                                    }
-                                    try { activeRoot.recycle() } catch (e: Exception) {}
-                                    return@launch
+                            if (activePackage.isNotEmpty() && !isTargetSocialApp(activePackage)) {
+                                if (isOverlayShowing && activePackage != this@ShortsBlockerService.packageName) {
+                                    mainHandler.post { removeFrictionOverlay() }
                                 }
+                                try { activeRoot.recycle() } catch (e: Exception) {}
+                                return@launch
                             }
-                        }
-
-                        // Filter accessibility events only for our targets
-                        val isTargetEvent = packageName.isNotEmpty() && (packageName.contains("youtube") || packageName.contains("instagram") || packageName.contains("snapchat"))
-
-                        if (!isTargetEvent) {
-                            try { activeRoot?.recycle() } catch (e: Exception) {}
-                            return@launch
-                        }
-
-                        var isAddictiveMedia = false
-
-                        // Check whole visible active window layout hierarchy
-                        if (activeRoot != null) {
                             isAddictiveMedia = checkNodeForShortsOrReels(activeRoot, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
                             try {
                                 activeRoot.recycle()
                             } catch (e: Exception) { /* ignore */ }
-                        } else {
-                            val backupRoot = try { rootInActiveWindow } catch (e: Exception) { null }
-                            if (backupRoot != null) {
-                                isAddictiveMedia = checkNodeForShortsOrReels(backupRoot, blockYT, blockIG, blockSC, 0, IntArray(1) { 0 })
-                                try { backupRoot.recycle() } catch (e: Exception) {}
-                            }
                         }
 
                         if (isAddictiveMedia) {
