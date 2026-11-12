@@ -54,7 +54,7 @@ class ShortsBlockerService : AccessibilityService() {
     private var lastReliefUpdateTime = 0L
 
     private fun handleReliefTime(currentTime: Long, packageName: String): Boolean {
-        val dailyReliefMinutes = sharedPreferences?.getInt("daily_relief_minutes", 0) ?: 0
+        val dailyReliefMinutes = (sharedPreferences?.getInt("daily_relief_minutes", 0) ?: 0).coerceIn(0, 30)
         if (dailyReliefMinutes <= 0) return false
         
         val allowYt = sharedPreferences?.getBoolean("allowance_youtube", true) ?: true

@@ -1172,35 +1172,7 @@ fun PrivacyPolicyScreen(onNavigateBack: () -> Unit) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Terms & Privacy Policy", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = {
-                            try {
-                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
-                                context.startActivity(browserIntent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Text("Open in Browser", fontWeight = FontWeight.Bold)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -1323,35 +1295,7 @@ fun HelpFAQScreen(onNavigateBack: () -> Unit) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Help & FAQs", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowBack, "Back")
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = {
-                            try {
-                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(helpUrl))
-                                context.startActivity(browserIntent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Text("Open in Browser", fontWeight = FontWeight.Bold)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         Column(
             modifier = Modifier

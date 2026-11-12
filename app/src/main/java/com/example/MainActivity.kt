@@ -358,7 +358,14 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         mutableFloatStateOf(initialIdx.toFloat())
     }
     
-    var allowanceMins by remember { mutableFloatStateOf(sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()) }
+    var allowanceMins by remember {
+        val raw = sharedPrefs.getInt("daily_relief_minutes", 30)
+        val clamped = raw.coerceIn(0, 30)
+        if (raw != clamped) {
+            sharedPrefs.edit().putInt("daily_relief_minutes", clamped).apply()
+        }
+        mutableFloatStateOf(clamped.toFloat())
+    }
     var allowYt by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_youtube", true)) }
     var allowIg by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_instagram", true)) }
     var allowSnap by remember { mutableStateOf(sharedPrefs.getBoolean("allowance_snapchat", true)) }
@@ -366,7 +373,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var bypassCount by remember { mutableIntStateOf(sharedPrefs.getInt("bypass_count", 0)) }
     var isPasswordSectionExpanded by remember { mutableStateOf(!isCustomPasswordSet) }
-    var showDailyReliefSheet by remember { mutableStateOf(false) }
     var showPostOnboardingPasswordSheet by remember {
         mutableStateOf(
             !isCustomPasswordSet &&
@@ -378,20 +384,11 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 bypassCount = sharedPrefs.getInt("bypass_count", 0)
-                allowanceMins = sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()
+                allowanceMins = sharedPrefs.getInt("daily_relief_minutes", 30).coerceIn(0, 30).toFloat()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    if (showDailyReliefSheet) {
-        DailyReliefBottomSheet(
-            onDismiss = {
-                showDailyReliefSheet = false
-                allowanceMins = sharedPrefs.getInt("daily_relief_minutes", 30).toFloat()
-            }
-        )
     }
 
     if (showPostOnboardingPasswordSheet) {
@@ -416,12 +413,12 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 28.dp),
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Surface(
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(52.dp),
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
@@ -430,61 +427,65 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             imageVector = Icons.Rounded.Lock,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Set Your Friction Password",
-                    style = MaterialTheme.typography.headlineSmall,
+                    text = "Set Friction Password",
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Yeh kisi security ke liye nahi hai — balki Shorts aur Reels dekhte time rukaawat (friction) paida karne ke liye hai! Jab aap Shorts/Reels kholenge, toh yeh tedha-medha password type karne mein dikkat aayegi taaki aap unmein atke na rahein.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Shorts और Reels खोलते समय रुकावट पैदा करने के लिए एक पासवर्ड सेट करें।",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Step 1: Type a Hard Friction Password",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    FilledTonalButton(
-                        onClick = {
-                            password = passwordSuggestions[suggestionIdx % passwordSuggestions.size]
-                            suggestionIdx++
-                        },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp),
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Text("Auto-Generate", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Friction Password (रुकावट पासवर्ड)") },
+                    label = { Text("Friction Password") },
                     placeholder = { Text("e.g. Focus@247") },
+                    trailingIcon = {
+                        Surface(
+                            onClick = {
+                                password = passwordSuggestions[suggestionIdx % passwordSuggestions.size]
+                                suggestionIdx++
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = "Auto Generate",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Auto",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp)
@@ -494,20 +495,14 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "Step 2: 6 Friction Rules (Taaki type karne mein mehnat lage)",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    PasswordCriterion(text = "At least 6 characters (कम से कम 6 अक्षर)", met = hasMinLength)
-                    PasswordCriterion(text = "Contains uppercase letter (A-Z)", met = hasUpper)
-                    PasswordCriterion(text = "Contains lowercase letter (a-z)", met = hasLower)
-                    PasswordCriterion(text = "Contains a number (0-9)", met = hasDigit)
-                    PasswordCriterion(text = "Contains a special symbol (@ # $ % !)", met = hasSpecial)
-                    PasswordCriterion(text = "No repeated characters (कोई अक्षर दोबारा न हो)", met = hasNoRepeats)
+                    PasswordCriterion(text = "कम से कम 6 अक्षर होने चाहिए", met = hasMinLength)
+                    PasswordCriterion(text = "एक बड़ा अक्षर हो (A-Z)", met = hasUpper)
+                    PasswordCriterion(text = "एक छोटा अक्षर हो (a-z)", met = hasLower)
+                    PasswordCriterion(text = "एक नंबर हो (0-9)", met = hasDigit)
+                    PasswordCriterion(text = "एक स्पेशल चिन्ह हो (@ # $ % !)", met = hasSpecial)
+                    PasswordCriterion(text = "कोई भी अक्षर दोबारा न हो", met = hasNoRepeats)
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -521,31 +516,16 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                             .apply()
                         savedPassword = password
                         isCustomPasswordSet = true
-                        showCurrentPassword = true
+                        showCurrentPassword = false
                         isPasswordSectionExpanded = false
                         showPostOnboardingPasswordSheet = false
-                        Toast.makeText(context, "✅ Friction Password Saved!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Friction Password Saved!", Toast.LENGTH_SHORT).show()
                     },
                     enabled = isValidPass,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Step 3: Save Friction Password", fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TextButton(
-                    onClick = {
-                        sharedPrefs.edit().putBoolean("post_onboarding_password_prompt_shown", true).apply()
-                        showPostOnboardingPasswordSheet = false
-                        isPasswordSectionExpanded = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Set on Home Screen Later (होम स्क्रीन से सेट करें)")
+                    Text("Save Password", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -703,13 +683,11 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                             .background(MaterialTheme.colorScheme.surfaceVariant)
                                     )
 
-                                    // Stat 2: Daily Relief Limit (Interactive)
+                                    // Stat 2: Daily Relief Limit
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { showDailyReliefSheet = true }
                                             .padding(vertical = 2.dp)
                                     ) {
                                         Row(
@@ -745,32 +723,13 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
 
                 // Mindful Friction Section
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Scroll Friction (स्क्रॉल स्पीड-ब्रेकर)",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = if (isCustomPasswordSet) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer
-                        ) {
-                            Text(
-                                text = if (isCustomPasswordSet) "Active ✓" else "Set Friction Password",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isCustomPasswordSet) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Scroll Friction",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    )
                     ElevatedCard(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.elevatedCardColors(
@@ -801,7 +760,7 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "Friction Password",
@@ -810,14 +769,26 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isCustomPasswordSet) {
-                                            "Creates typing effort when Shorts/Reels open so you don't get stuck scrolling."
+                                        text = if (isCustomPasswordSet && !showCurrentPassword) {
+                                            "Saved • Tap Edit to change"
+                                        } else if (isCustomPasswordSet) {
+                                            "Current: $savedPassword"
                                         } else {
-                                            "Shorts/Reels dekhte time rukaawat paida karne ke liye niche apna Friction Password set karein."
+                                            "Shorts/Reels खोलते समय रुकावट के लिए पासवर्ड"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                                if (isCustomPasswordSet && !isPasswordSectionExpanded) {
+                                    TextButton(
+                                        onClick = { showCurrentPassword = !showCurrentPassword }
+                                    ) {
+                                        Text(
+                                            text = if (showCurrentPassword) "Hide" else "Show",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                                 FilledTonalIconButton(
                                     onClick = { isPasswordSectionExpanded = !isPasswordSectionExpanded },
@@ -833,103 +804,43 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Always show Current Active Friction Password clearly so the user never wonders what it is
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = if (isCustomPasswordSet) "Current Friction Password:" else "Current Default Friction Phrase:",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = if (showCurrentPassword) savedPassword else "••••••••••••",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    TextButton(
-                                        onClick = { showCurrentPassword = !showCurrentPassword }
-                                    ) {
-                                        Text(
-                                            text = if (showCurrentPassword) "Hide" else "Show",
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-
                             androidx.compose.animation.AnimatedVisibility(visible = isPasswordSectionExpanded) {
-                                Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                                    if (!isCustomPasswordSet) {
-                                        Surface(
-                                            color = MaterialTheme.colorScheme.secondaryContainer,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Column(modifier = Modifier.padding(14.dp)) {
-                                                Text(
-                                                    text = "Friction Password Kyon Aur Kaise Set Karein?",
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                                )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = "Yeh security ke liye nahi, balki Shorts/Reels kholte waqt aapko rokne (dikkat paida karne) ke liye hai:\n1. Niche ek tedha-medha password likhein (jaise Focus@247) ya 'Auto-Generate' dabayein.\n2. Niche ke 6 Friction Rules green (✓) karein taaki ise baar-baar type karne mein aalas aaye.\n3. Phir 'Save Friction Password' button dabayein.",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(14.dp))
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Step 1: Type a Hard Friction Password",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        FilledTonalButton(
-                                            onClick = {
-                                                password = passwordSuggestions[suggestionIdx % passwordSuggestions.size]
-                                                suggestionIdx++
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(32.dp),
-                                            shape = RoundedCornerShape(50)
-                                        ) {
-                                            Text("Auto-Generate", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
+                                Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
                                     OutlinedTextField(
                                         value = password,
                                         onValueChange = { password = it },
-                                        label = { Text("New Friction Password") },
+                                        label = { Text("Friction Password") },
                                         placeholder = { Text("e.g. Focus@247") },
+                                        trailingIcon = {
+                                            Surface(
+                                                onClick = {
+                                                    password = passwordSuggestions[suggestionIdx % passwordSuggestions.size]
+                                                    suggestionIdx++
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Refresh,
+                                                        contentDescription = "Auto Generate",
+                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Auto",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    )
+                                                }
+                                            }
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                         shape = RoundedCornerShape(16.dp),
@@ -940,14 +851,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
 
-                                    Text(
-                                        text = "Step 2: 6 Friction Rules (Taaki type karne mein mehnat lage)",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    
                                     val hasMinLength = password.length >= 6
                                     val hasUpper = password.any { it.isUpperCase() }
                                     val hasLower = password.any { it.isLowerCase() }
@@ -957,15 +860,15 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     val isValidPassword = hasMinLength && hasUpper && hasLower && hasDigit && hasSpecial && hasNoRepeats
 
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        PasswordCriterion(text = "At least 6 characters (कम से कम 6 अक्षर)", met = hasMinLength)
-                                        PasswordCriterion(text = "Contains uppercase letter (A-Z)", met = hasUpper)
-                                        PasswordCriterion(text = "Contains lowercase letter (a-z)", met = hasLower)
-                                        PasswordCriterion(text = "Contains a number (0-9)", met = hasDigit)
-                                        PasswordCriterion(text = "Contains a special symbol (@ # $ % !)", met = hasSpecial)
-                                        PasswordCriterion(text = "No repeated characters (कोई अक्षर दोबारा न हो)", met = hasNoRepeats)
+                                        PasswordCriterion(text = "कम से कम 6 अक्षर होने चाहिए", met = hasMinLength)
+                                        PasswordCriterion(text = "एक बड़ा अक्षर हो (A-Z)", met = hasUpper)
+                                        PasswordCriterion(text = "एक छोटा अक्षर हो (a-z)", met = hasLower)
+                                        PasswordCriterion(text = "एक नंबर हो (0-9)", met = hasDigit)
+                                        PasswordCriterion(text = "एक स्पेशल चिन्ह हो (@ # $ % !)", met = hasSpecial)
+                                        PasswordCriterion(text = "कोई भी अक्षर दोबारा न हो", met = hasNoRepeats)
                                     }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
                                     Button(
                                         onClick = {
                                             sharedPrefs.edit()
@@ -974,18 +877,16 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                                 .apply()
                                             savedPassword = password
                                             isCustomPasswordSet = true
-                                            showCurrentPassword = true
-                                            Toast.makeText(context, "✅ Friction Password Saved!", Toast.LENGTH_LONG).show()
+                                            showCurrentPassword = false
+                                            Toast.makeText(context, "Friction Password Saved!", Toast.LENGTH_SHORT).show()
                                             isPasswordSectionExpanded = false
                                         },
                                         enabled = isValidPassword,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        shape = RoundedCornerShape(14.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                     ) {
-                                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Step 3: Save Friction Password", fontWeight = FontWeight.Bold)
+                                        Text("Save Password", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1026,7 +927,6 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     )
                                 }
                                 Surface(
-                                    onClick = { showDailyReliefSheet = true },
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     shape = RoundedCornerShape(50)
                                 ) {
@@ -1036,7 +936,7 @@ fun ShortsBlockerHomeScreen(modifier: Modifier = Modifier, onNavigateToSettings:
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.Timer,
-                                            contentDescription = "Open Dial",
+                                            contentDescription = null,
                                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                             modifier = Modifier.size(16.dp)
                                         )
