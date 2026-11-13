@@ -55,63 +55,8 @@ class ShortsBlockerService : AccessibilityService() {
     
     private var lastReliefUpdateTime = 0L
 
-    private val knownPaymentAndBankingPackages = setOf(
-        "com.google.android.apps.nbu.paisa.user", // Google Pay
-        "net.one97.paytm", // Paytm
-        "com.phonepe.app", // PhonePe
-        "in.org.npci.upiapp", // BHIM
-        "com.naviapp", // Navi
-        "com.dreamplug.androidapp", // CRED
-        "in.amazon.mShop.android.shopping", // Amazon Pay
-        "com.mobikwik_new", // MobiKwik
-        "com.freecharge.android", // Freecharge
-        "money.super.payments", // Super.money
-        "com.fampay.in", // FamPay
-        "money.jupiter", // Jupiter
-        "com.epifi.paisa", // Fi Money
-        "indwin.c3.shareapp", // Slice
-        "com.sbi.lotusintouch", // SBI YONO
-        "com.sbi.SBIFreedomPlus", // SBI YONO Lite
-        "com.snapwork.hdfc", // HDFC Bank
-        "com.csam.icici.bank.imobile", // ICICI iMobile Pay
-        "com.axis.mobile", // Axis Mobile
-        "com.msf.kbank.mobile", // Kotak811
-        "com.bankofbaroda.mconnect", // BoB World
-        "com.Version1", // PNB One
-        "com.canarabank.mobility", // Canara ai1
-        "com.infrasoft.uboi", // Union Bank Vyom
-        "com.ipop.ippbmobile", // India Post Payments Bank
-        "com.myairtelapp", // Airtel Thanks
-        "com.jio.myjio", // MyJio
-        "com.jio.finance", // JioFinance
-        "org.altruist.BajajExperia", // Bajaj Finserv
-        "com.nextbillion.groww", // Groww
-        "com.zerodha.kite3", // Zerodha Kite
-        "com.msf.angelmobile" // Angel One
-    )
-
     private fun isTargetSocialApp(pkg: String): Boolean {
         return pkg.contains("youtube") || pkg.contains("instagram") || pkg.contains("snapchat")
-    }
-
-    private fun isPaymentOrBankingApp(pkg: String): Boolean {
-        if (pkg.isEmpty()) return false
-        if (knownPaymentAndBankingPackages.contains(pkg)) return true
-        val lower = pkg.lowercase()
-        return lower.contains("upi") ||
-            lower.contains("paytm") ||
-            lower.contains("phonepe") ||
-            lower.contains("paisa") ||
-            lower.contains("bhim") ||
-            lower.contains("bank") ||
-            lower.contains("yono") ||
-            lower.contains("imobile") ||
-            lower.contains("hdfc") ||
-            lower.contains("icici") ||
-            lower.contains("kotak") ||
-            lower.contains("wallet") ||
-            lower.contains("fampay") ||
-            lower.contains("finance")
     }
 
     private fun handleReliefTime(currentTime: Long, packageName: String): Boolean {
@@ -526,17 +471,6 @@ class ShortsBlockerService : AccessibilityService() {
 
             if (packageName.isNotEmpty() && packageName != this.packageName) {
                 currentForegroundPackage = packageName
-            }
-
-            if (isPaymentOrBankingApp(packageName)) {
-                val pauseForPayments = sharedPreferences?.getBoolean("pause_for_payments", true) ?: true
-                if (pauseForPayments) {
-                    if (isOverlayShowing) {
-                        mainHandler.post { removeFrictionOverlay() }
-                    }
-                    removeProgressOverlay()
-                    return
-                }
             }
 
             val isTargetEvent = packageName.isNotEmpty() && isTargetSocialApp(packageName)

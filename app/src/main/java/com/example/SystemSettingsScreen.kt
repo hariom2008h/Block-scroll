@@ -99,8 +99,6 @@ fun ShortsBlockerSystemSettingsScreen(
         }
     }
 
-    var pauseForPayments by remember { mutableStateOf(sharedPrefs.getBoolean("pause_for_payments", true)) }
-
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -402,32 +400,6 @@ fun ShortsBlockerSystemSettingsScreen(
                         title = "Manage Permissions",
                         onClick = onNavigateToPermissions
                     )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text("Pause for Payment Apps", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "Automatically pause accessibility service when a payment app is opened",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = pauseForPayments,
-                            onCheckedChange = {
-                                pauseForPayments = it
-                                sharedPrefs.edit().putBoolean("pause_for_payments", it).apply()
-                            }
-                        )
-                    }
                 }
             }
 
