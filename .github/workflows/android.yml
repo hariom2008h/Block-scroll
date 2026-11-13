@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -28,18 +29,52 @@ jobs:
         if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
           echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > debug.keystore
         else
-          echo "Error: DEBUG_KEYSTORE_BASE64 secret is missing. Please add it to GitHub Secrets."
-          exit 1
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         fi
 
-    - name: Execute Local Gradle Compile
+    - name: Prepare Release Keystore (For Indus Appstore & Play Store)
+      env:
+        RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'ShortsBlocker@2026' }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ShortsBlocker@2026' }}
+      run: |
+        if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > my-upload-key.jks
+        elif [ ! -f "my-upload-key.jks" ]; then
+          keytool -genkeypair -v \
+            -keystore my-upload-key.jks \
+            -alias upload \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -dname "CN=Hari Om Bhadana, OU=Shorts Blocker, O=Esech, L=Jaipur, ST=Rajasthan, C=IN"
+        fi
+
+    - name: Build Release APK & AAB (Store Ready - Non-Debug)
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
-      run: gradle assembleDebug
+        KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'ShortsBlocker@2026' }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ShortsBlocker@2026' }}
+      run: ./gradlew assembleRelease bundleRelease assembleDebug
 
-    - name: Export Target Package Artifacts
+    - name: Export Store-Ready Release APK (Upload this to Indus Appstore)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Shorts-blocker-RELEASE-apk
+        path: app/build/outputs/apk/release/app-release.apk
+
+    - name: Export Store-Ready Release AAB
+      uses: actions/upload-artifact@v4
+      with:
+        name: Shorts-blocker-RELEASE-aab
+        path: app/build/outputs/bundle/release/app-release.aab
+
+    - name: Export Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: shorts-blocker-debug-apk
