@@ -249,6 +249,99 @@ class MainActivity : ComponentActivity() {
 
       MyApplicationTheme(darkTheme = isDark, dynamicColor = useDynamicColor) {
         var currentScreen by remember { mutableStateOf(if (isFirstLaunch) "onboarding" else "home") }
+        var availableUpdate by remember { mutableStateOf<UpdateResult.NewVersionAvailable?>(null) }
+
+        LaunchedEffect(currentScreen) {
+            if (currentScreen == "home" && availableUpdate == null) {
+                UpdateChecker.checkForUpdateOnLaunch(this@MainActivity) { result ->
+                    availableUpdate = result
+                }
+            }
+        }
+
+        availableUpdate?.let { update ->
+            val hasIndusStore = remember {
+                UpdateChecker.isInstalledFromIndusAppstore(this@MainActivity) ||
+                    UpdateChecker.isIndusAppstoreInstalled(this@MainActivity)
+            }
+            AlertDialog(
+                onDismissRequest = {
+                    UpdateChecker.dismissUpdateVersion(this@MainActivity, update.latestVersion)
+                    availableUpdate = null
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                title = {
+                    Text(
+                        text = "New Update Available",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "v${update.currentVersion.removePrefix("v")} → v${update.latestVersion.removePrefix("v")}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (update.releaseNotes.isNotBlank()) {
+                            Text(
+                                text = update.releaseNotes.take(280),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (hasIndusStore) {
+                            Text(
+                                text = "Update directly via Indus Appstore for seamless installation.",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (hasIndusStore) {
+                                UpdateChecker.openInIndusAppstore(this@MainActivity)
+                            } else if (update.downloadUrl.endsWith(".apk")) {
+                                Toast.makeText(this@MainActivity, "Downloading update...", Toast.LENGTH_SHORT).show()
+                                UpdateChecker.downloadAndInstallApk(
+                                    context = this@MainActivity,
+                                    downloadUrl = update.downloadUrl,
+                                    onProgress = {},
+                                    onError = { err ->
+                                        Toast.makeText(this@MainActivity, err, Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            } else {
+                                UpdateChecker.openInIndusAppstore(this@MainActivity)
+                            }
+                            availableUpdate = null
+                        }
+                    ) {
+                        Text(if (hasIndusStore) "Update on Indus" else "Update Now", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            UpdateChecker.dismissUpdateVersion(this@MainActivity, update.latestVersion)
+                            availableUpdate = null
+                        }
+                    ) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
         
         Scaffold(
             modifier = Modifier.fillMaxSize(),

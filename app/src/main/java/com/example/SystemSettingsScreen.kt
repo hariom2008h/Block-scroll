@@ -185,7 +185,7 @@ fun ShortsBlockerSystemSettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "GitHub-based updater",
+                                    text = "Indus Appstore & GitHub Updater",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -209,15 +209,21 @@ fun ShortsBlockerSystemSettingsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
+                    val isFromIndus = remember { UpdateChecker.isInstalledFromIndusAppstore(context) }
+                    val hasIndusStore = remember { UpdateChecker.isIndusAppstoreInstalled(context) }
                     Text(
-                        text = "Check for official application updates and view recent release logs directly from GitHub.",
+                        text = if (isFromIndus) {
+                            "Installed via Indus Appstore. Check for new versions or open Indus Appstore to update."
+                        } else {
+                            "Auto-checks for new versions published on Indus Appstore and GitHub Releases."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // Buttons and States
                     Row(
@@ -265,7 +271,7 @@ fun ShortsBlockerSystemSettingsScreen(
                         Button(
                             onClick = {
                                 updateChecking = true
-                                updateCheckStatus = "Checking GitHub..."
+                                updateCheckStatus = "Checking for updates..."
                                 UpdateChecker.checkForUpdate(
                                     context = context,
                                     owner = gitHubOwner,
@@ -274,7 +280,7 @@ fun ShortsBlockerSystemSettingsScreen(
                                     updateChecking = false
                                     when (result) {
                                         is UpdateResult.NewVersionAvailable -> {
-                                            updateCheckStatus = "Update available: v${result.latestVersion}"
+                                            updateCheckStatus = "Update available: v${result.latestVersion.removePrefix("v")}"
                                             showUpdateDialog = result
                                         }
                                         is UpdateResult.UpToDate -> {
@@ -307,6 +313,21 @@ fun ShortsBlockerSystemSettingsScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Check Update")
                             }
+                        }
+                    }
+
+                    if (hasIndusStore || isFromIndus) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                if (!UpdateChecker.openInIndusAppstore(context)) {
+                                    Toast.makeText(context, "Could not open Indus Appstore", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Open in Indus Appstore", fontWeight = FontWeight.SemiBold)
                         }
                     }
 
@@ -1703,31 +1724,66 @@ fun UpdateDetailsScreen(
                 }
             }
             
+            val context = LocalContext.current
+            val hasIndusStore = remember {
+                UpdateChecker.isInstalledFromIndusAppstore(context) ||
+                    UpdateChecker.isIndusAppstoreInstalled(context)
+            }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     if (downloadProgress != null) {
                         Text(
                             text = if (downloadProgress == 100) "Download complete. Starting install..." else "Downloading: $downloadProgress%",
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                         LinearProgressIndicator(
                             progress = { downloadProgress / 100f },
                             modifier = Modifier.fillMaxWidth(),
                             color = MaterialTheme.colorScheme.primary
                         )
+                    } else if (hasIndusStore) {
+                        Button(
+                            onClick = {
+                                if (!UpdateChecker.openInIndusAppstore(context)) {
+                                    Toast.makeText(context, "Could not open Indus Appstore", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Update on Indus Appstore", fontWeight = FontWeight.Bold)
+                        }
+                        if (updateInfo.downloadUrl.endsWith(".apk")) {
+                            OutlinedButton(
+                                onClick = onDownload,
+                                modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().height(46.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Download APK Directly", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     } else {
                         Button(
                             onClick = onDownload,
-                            modifier = Modifier.width(280.dp).align(Alignment.CenterHorizontally).height(50.dp),
+                            modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().height(50.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Download & Install", fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(
+                            onClick = { UpdateChecker.openInIndusAppstore(context) }
+                        ) {
+                            Text("Open on Indus Appstore", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

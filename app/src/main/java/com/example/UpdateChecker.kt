@@ -29,6 +29,15 @@ sealed class UpdateResult {
 
 object UpdateChecker {
 
+    const val INDUS_APPSTORE_PACKAGE = "com.indus.appstore"
+    const val DEFAULT_GITHUB_OWNER = "hariom2008h"
+    const val DEFAULT_GITHUB_REPO = "Block-scroll"
+    const val WEBSITE_VERSION_URL = "https://hariom2008h.github.io/Shorts-blocker-pages/version.json"
+    private const val PREFS_NAME = "shorts_blocker_prefs"
+    private const val KEY_LAST_UPDATE_CHECK = "last_update_check_ms"
+    private const val KEY_DISMISSED_VERSION = "dismissed_update_version"
+    private const val AUTO_CHECK_INTERVAL_MS = 12L * 60L * 60L * 1000L // 12 hours
+
     fun getCurrentVersion(context: Context): String {
         return try {
             val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -43,9 +52,95 @@ object UpdateChecker {
         }
     }
 
+    fun isInstalledFromIndusAppstore(context: Context): Boolean {
+        return try {
+            val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getInstallerPackageName(context.packageName)
+            }
+            installer != null && (installer == INDUS_APPSTORE_PACKAGE || installer.contains("indus", ignoreCase = true))
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun isIndusAppstoreInstalled(context: Context): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(INDUS_APPSTORE_PACKAGE, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(INDUS_APPSTORE_PACKAGE, 0)
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun openInIndusAppstore(context: Context): Boolean {
+        val pkg = context.packageName
+        val candidateIntents = listOf(
+            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).apply {
+                setPackage(INDUS_APPSTORE_PACKAGE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.indusappstore.com/apps/details?id=$pkg")).apply {
+                setPackage(INDUS_APPSTORE_PACKAGE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            context.packageManager.getLaunchIntentForPackage(INDUS_APPSTORE_PACKAGE)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.indusappstore.com/")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        ).filterNotNull()
+
+        for (intent in candidateIntents) {
+            try {
+                context.startActivity(intent)
+                return true
+            } catch (_: Exception) {
+                // Try next fallback intent
+            }
+        }
+        return false
+    }
+
+    fun dismissUpdateVersion(context: Context, version: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_DISMISSED_VERSION, version)
+            .apply()
+    }
+
+    fun checkForUpdateOnLaunch(
+        context: Context,
+        onUpdateAvailable: (UpdateResult.NewVersionAvailable) -> Unit
+    ) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastCheck = prefs.getLong(KEY_LAST_UPDATE_CHECK, 0L)
+        if (now - lastCheck < AUTO_CHECK_INTERVAL_MS) return
+
+        prefs.edit().putLong(KEY_LAST_UPDATE_CHECK, now).apply()
+
+        checkForUpdate(context, DEFAULT_GITHUB_OWNER, DEFAULT_GITHUB_REPO) { result ->
+            if (result is UpdateResult.NewVersionAvailable) {
+                val dismissed = prefs.getString(KEY_DISMISSED_VERSION, "") ?: ""
+                if (dismissed != result.latestVersion) {
+                    onUpdateAvailable(result)
+                }
+            }
+        }
+    }
+
     fun isNewerVersion(current: String, latest: String): Boolean {
-        val curClean = current.trim().removePrefix("v").removePrefix("V")
-        val latClean = latest.trim().removePrefix("v").removePrefix("V")
+        val curClean = current.trim().removePrefix("v").removePrefix("V").substringBefore("-")
+        val latClean = latest.trim().removePrefix("v").removePrefix("V").substringBefore("-")
         
         val curParts = curClean.split(".")
         val latParts = latClean.split(".")
@@ -60,10 +155,41 @@ object UpdateChecker {
         return false
     }
 
+    private fun tryFetchWebsiteVersion(currentVersion: String): UpdateResult.NewVersionAvailable? {
+        return try {
+            val conn = (URL(WEBSITE_VERSION_URL).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("User-Agent", "Android-ShortsBlocker-UpdateChecker")
+                connectTimeout = 4000
+                readTimeout = 4000
+            }
+            val code = conn.responseCode
+            if (code == HttpURLConnection.HTTP_OK) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val json = JSONObject(body)
+                val latestVersion = json.optString("latestVersion", json.optString("version", ""))
+                val releaseNotes = json.optString("releaseNotes", json.optString("notes", "New update available on Indus Appstore!"))
+                val downloadUrl = json.optString("downloadUrl", "")
+                if (latestVersion.isNotBlank() && isNewerVersion(currentVersion, latestVersion)) {
+                    UpdateResult.NewVersionAvailable(currentVersion, latestVersion, downloadUrl, releaseNotes)
+                } else {
+                    null
+                }
+            } else {
+                conn.disconnect()
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun checkForUpdate(
         context: Context,
-        owner: String,
-        repo: String,
+        owner: String = DEFAULT_GITHUB_OWNER,
+        repo: String = DEFAULT_GITHUB_REPO,
         onResult: (UpdateResult) -> Unit
     ) {
         val currentVersion = getCurrentVersion(context)
@@ -71,10 +197,18 @@ object UpdateChecker {
         thread {
             val handler = Handler(Looper.getMainLooper())
             try {
+                // 1. Check optional website version.json (if hosted on GitHub Pages for instant Indus Appstore version bumps)
+                val websiteUpdate = tryFetchWebsiteVersion(currentVersion)
+                if (websiteUpdate != null) {
+                    handler.post { onResult(websiteUpdate) }
+                    return@thread
+                }
+
+                // 2. Check GitHub Releases API
                 val cleanOwner = owner.trim()
                 val cleanRepo = repo.trim()
                 if (cleanOwner.isEmpty() || cleanRepo.isEmpty()) {
-                    handler.post { onResult(UpdateResult.Error("GitHub username and repository cannot be empty.")) }
+                    handler.post { onResult(UpdateResult.Error("Repository cannot be empty.")) }
                     return@thread
                 }
 
@@ -109,7 +243,7 @@ object UpdateChecker {
                         }
                     }
 
-                    // Fallback to checking the main release if no assets are found (though releases package APKs as assets)
+                    // Fallback to checking the main release if no assets are found
                     if (downloadUrl.isEmpty()) {
                         downloadUrl = json.optString("html_url", "")
                     }
@@ -127,7 +261,7 @@ object UpdateChecker {
                 conn.disconnect()
             } catch (e: Exception) {
                 e.printStackTrace()
-                handler.post { onResult(UpdateResult.Error("Network error: ${e.localizedMessage ?: "Could not connect to GitHub"}")) }
+                handler.post { onResult(UpdateResult.Error("Network error: ${e.localizedMessage ?: "Could not check for updates"}")) }
             }
         }
     }
@@ -141,6 +275,10 @@ object UpdateChecker {
         thread {
             val handler = Handler(Looper.getMainLooper())
             try {
+                if (downloadUrl.isBlank()) {
+                    handler.post { onError("No direct APK download link provided. Please update via Indus Appstore.") }
+                    return@thread
+                }
                 val url = URL(downloadUrl)
                 val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 15000
@@ -221,7 +359,6 @@ object UpdateChecker {
             context.startActivity(intent)
         } catch (e: Exception) {
             e.printStackTrace()
-            // Some devices need ACTION_INSTALL_PACKAGE or direct app permission
             try {
                 val uri = Uri.fromFile(file)
                 val intent = Intent(Intent.ACTION_VIEW).apply {
