@@ -22,45 +22,28 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Prepare Debug Keystore
+    - name: Prepare Keystore from GitHub Secret (DEBUG_KEYSTORE_BASE64)
       env:
         DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
       run: |
         if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
           echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > debug.keystore
         else
-          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Shorts Blocker, OU=Mobile, O=Esech, C=IN"
         fi
+        # Copy the exact same keystore for Release signing and map alias 'androiddebugkey' -> 'upload'
+        cp debug.keystore my-upload-key.jks
+        keytool -changealias -keystore my-upload-key.jks -storepass android -alias androiddebugkey -destalias upload -keypass android
 
-    - name: Prepare Release Keystore (For Indus Appstore & Play Store)
-      env:
-        RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'ShortsBlocker@2026' }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ShortsBlocker@2026' }}
-      run: |
-        if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
-          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > my-upload-key.jks
-        elif [ ! -f "my-upload-key.jks" ]; then
-          keytool -genkeypair -v \
-            -keystore my-upload-key.jks \
-            -alias upload \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass "$STORE_PASSWORD" \
-            -keypass "$KEY_PASSWORD" \
-            -dname "CN=Hari Om Bhadana, OU=Shorts Blocker, O=Esech, L=Jaipur, ST=Rajasthan, C=IN"
-        fi
-
-    - name: Build Release APK & AAB (Store Ready - Non-Debug)
+    - name: Build Store-Ready Release APK, AAB & Debug APK
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
         KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
-        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'ShortsBlocker@2026' }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ShortsBlocker@2026' }}
-      run: ./gradlew assembleRelease bundleRelease assembleDebug
+        STORE_PASSWORD: android
+        KEY_PASSWORD: android
+      run: gradle assembleRelease bundleRelease assembleDebug
 
     - name: Export Store-Ready Release APK (Upload this to Indus Appstore)
       uses: actions/upload-artifact@v4
